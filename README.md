@@ -1,6 +1,6 @@
 ﻿# AgentBreak
 
-**AgentBreak** is a reproducible security-testing harness for tool-using AI agents. It evaluates agents against prompt injection and unauthorized tool execution in a controlled, mock-tool testing environment with a security gateway, independent evaluation engine, and defense comparison analytics.
+**AgentBreak** is a reproducible security-testing harness for tool-using AI agents. It evaluates agents against prompt injection and unauthorized tool execution in a controlled, mock-tool testing environment with a security gateway, independent evaluation engine, and defense comparison analytics (7 of 8 attacks prevented, 1 documented residual).
 
 > **Note:** This is a controlled mock-tool harness, deterministic scripted agent. Not an OS-level sandbox, not a measure of real LLM behavior.
 

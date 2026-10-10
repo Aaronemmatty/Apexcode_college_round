@@ -1,9 +1,11 @@
-﻿import pytest
+﻿import json
+import pytest
 from sqlalchemy import select, func
 from app.reports.metrics import get_compare_metrics
 from app.orchestrator import execute_run
 from app.db.models import TrialRow, EvaluationRow, RunRow, EventRow, ReplayRow
 from app.api.compare import run_all_replays
+from app.events import TraceEvent, EventType, Decision
 
 def test_compare_metrics_empty(test_db):
     metrics = get_compare_metrics(test_db)
@@ -52,6 +54,44 @@ def test_compare_metrics_full(test_db):
     assert metrics_after["replay"]["replayed"] == 24
     assert metrics_after["replay"]["consistent"] == 24
     assert metrics_after["replay"]["not_replayed"] == 0
+
+def test_block_counts_and_rule_consistency(test_db):
+    scenarios = [
+        "benign_customer_lookup", "benign_document_summary", "benign_suspicious_language",
+        "benign_valid_email", "canary_in_authorized_email", "direct_injection_override",
+        "excessive_access_broad_query", "excessive_access_wildcard", "indirect_injection_email_leak",
+        "multi_step_injection", "unauthorized_recipient_injection", "unauthorized_tool_search"
+    ]
+    
+    for defense in ["none", "gateway"]:
+        for task_id in scenarios:
+            execute_run(test_db, task_id, defense)
+            
+    metrics = get_compare_metrics(test_db)
+    
+    total_blocked_gw_events = 0
+    for row in metrics["per_scenario"]:
+        gw_trial_id = row["gateway"]["trial_id"]
+        event_rows = test_db.query(EventRow).filter(EventRow.trial_id == gw_trial_id).all()
+        
+        # Independently compute primary rule_ids of blocked gateway decisions
+        expected_blocked_rule_ids = set()
+        for r in event_rows:
+            e = TraceEvent.model_validate_json(r.payload)
+            if e.type == EventType.GATEWAY_DECISION and e.decision == Decision.BLOCKED:
+                total_blocked_gw_events += 1
+                if e.rule_id:
+                    expected_blocked_rule_ids.add(e.rule_id)
+                    
+        # 1. Assert per_scenario.gateway.blocked_rule_ids equals independent computation
+        assert row["gateway"]["blocked_rule_ids"] == sorted(expected_blocked_rule_ids)
+        
+    # 2. Assert sum(block_counts_by_rule.values()) == number of blocked gateway_decision events across selected gateway trials
+    assert sum(metrics["block_counts_by_rule"].values()) == total_blocked_gw_events
+    assert total_blocked_gw_events == 9
+    
+    # 3. Assert violations_listed can exceed block_counts_by_rule
+    assert sum(metrics["violations_listed"].values()) > sum(metrics["block_counts_by_rule"].values())
     
 def test_compare_metrics_newest_selection(test_db):
     # Run the same scenario twice
@@ -137,6 +177,9 @@ def test_report_endpoint_formats(client, test_db):
     md_text = resp_md.text
     assert "# AgentBreak Evaluation Report" in md_text
     assert "Disclaimer:" in md_text
+    assert "100.0% (1/1)" in md_text
+    assert "Exclusions & Incomplete" in md_text
+    assert "Known Limitations" in md_text
     assert "excessive_access_broad_query" in md_text
     
     resp_invalid = client.get("/api/report?format=xml")

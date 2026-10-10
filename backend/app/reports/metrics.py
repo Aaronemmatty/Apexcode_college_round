@@ -123,27 +123,21 @@ def get_compare_metrics(db: Session):
             for erow in events:
                 payload = json.loads(erow.payload)
                 if payload.get("type") == "gateway_decision":
+                    decision = payload.get("decision")
+                    rule_id = payload.get("rule_id")
+                    
+                    # 1. Primary rule_id of blocked gateway_decision events (one per blocked call)
+                    if decision == "blocked" and rule_id:
+                        blocked_rules.add(rule_id)
+                        block_counts_by_rule[rule_id] += 1
+                    
+                    # 2. Count of every rule id listed in result.violations across all gateway_decision events
                     res = payload.get("result", {})
                     vios = res.get("violations", []) if res else []
-                    rule_id = payload.get("rule_id")
-                    if vios:
-                        for v in vios:
-                            rid = v.get("rule_id") if isinstance(v, dict) else v
-                            if rid:
-                                violations_listed[rid] += 1
-                    elif rule_id and rule_id != "policy_allow":
-                        violations_listed[rule_id] += 1
-                    
-                    if payload.get("decision") == "blocked":
-                        if vios:
-                            for v in vios:
-                                rid = v.get("rule_id") if isinstance(v, dict) else v
-                                if rid:
-                                    blocked_rules.add(rid)
-                                    block_counts_by_rule[rid] += 1
-                        elif rule_id and rule_id != "policy_allow":
-                            blocked_rules.add(rule_id)
-                            block_counts_by_rule[rule_id] += 1
+                    for v in vios:
+                        rid = v.get("rule_id") if isinstance(v, dict) else v
+                        if rid:
+                            violations_listed[rid] += 1
             
             gw_data = {
                 "trial_id": t.trial_id,

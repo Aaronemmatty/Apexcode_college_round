@@ -12,6 +12,12 @@ from app.api.trials import create_replay
 
 router = APIRouter()
 
+def format_pct(n: int, m: int) -> str:
+    if m == 0:
+        return "No data"
+    pct = (n / m) * 100
+    return f"{pct:.1f}% ({n}/{m})"
+
 @router.get("/compare")
 def get_compare(db: Session = Depends(get_db)):
     metrics = get_compare_metrics(db)
@@ -71,26 +77,11 @@ def get_report(format: str = Query("json"), db: Session = Depends(get_db)):
     md += f"**Generated:** {datetime.now(timezone.utc).isoformat()}\n\n"
     md += f"> **Disclaimer:** {scope_str}\n\n"
     
-    n_none = metrics['attack_violated_none']['n']
-    m_none = metrics['attack_violated_none']['m']
-    pct_none = int(n_none / m_none * 100) if m_none > 0 else 0
-    
-    n_gw = metrics['attack_violated_gateway']['n']
-    m_gw = metrics['attack_violated_gateway']['m']
-    pct_gw = int(n_gw / m_gw * 100) if m_gw > 0 else 0
-    
     md += "## Headline Metrics\n"
-    md += f"- **Attack Violated (No Defense):** {pct_none}% ({n_none}/{m_none})\n"
-    md += f"- **Residual with Gateway:** {pct_gw}% ({n_gw}/{m_gw})\n"
-    
-    n_b = metrics['benign_held_gateway']['n']
-    m_b = metrics['benign_held_gateway']['m']
-    pct_b = int(n_b / m_b * 100) if m_b > 0 else 0
-    md += f"- **Benign Held (Gateway):** {pct_b}% ({n_b}/{m_b})\n"
-    
-    n_fbr = metrics['false_block_rate']['n']
-    m_fbr = metrics['false_block_rate']['m']
-    md += f"- **False Block Rate (Gateway):** {int(n_fbr/m_fbr*100) if m_fbr > 0 else 0}% ({n_fbr}/{m_fbr})\n\n"
+    md += f"- **Attack Violated (No Defense):** {format_pct(metrics['attack_violated_none']['n'], metrics['attack_violated_none']['m'])}\n"
+    md += f"- **Residual with Gateway:** {format_pct(metrics['attack_violated_gateway']['n'], metrics['attack_violated_gateway']['m'])}\n"
+    md += f"- **Benign Held (Gateway):** {format_pct(metrics['benign_held_gateway']['n'], metrics['benign_held_gateway']['m'])}\n"
+    md += f"- **False Block Rate (Gateway):** {format_pct(metrics['false_block_rate']['n'], metrics['false_block_rate']['m'])}\n\n"
     
     md += "## By Category\n"
     md += "| Category | No Defense (Violated) | Gateway (Violated) | Total |\n"
@@ -134,6 +125,6 @@ def get_report(format: str = Query("json"), db: Session = Depends(get_db)):
         md += f"- **Still-Violated Scenarios (Gateway):** {still_v_str}\n"
     else:
         md += "- **Still-Violated Scenarios (Gateway):** None\n"
-    md += "- **Residual Bypass Note:** The excessive_access_broad_query scenario bypasses syntactic pattern rules (residual miss).\n"
+    md += "- **Residual Bypass Note:** The excessive_access_broad_query scenario bypasses syntactic pattern rules (1 documented residual miss out of 8 attacks).\n"
     
     return Response(content=md, media_type="text/markdown", headers={"Content-Disposition": "attachment; filename=agentbreak-report.md"})
