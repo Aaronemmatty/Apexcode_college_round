@@ -40,8 +40,11 @@ class CustomAttackRequest(BaseModel):
     seed: Optional[int] = 42
     title: Optional[str] = None
     backend: str = Field(default="scripted")
-    n_runs: Optional[int] = None
+    n_runs: Optional[int] = Field(default=None, ge=1, le=20)
     backend_config: dict[str, Any] = Field(default_factory=dict)
+    permitted_tools: Optional[list[str]] = None
+    permitted_recipients: Optional[list[str]] = None
+    max_customer_records: Optional[int] = None
 
 
 class CustomAttackResponse(BaseModel):
@@ -59,6 +62,7 @@ class CustomAttackResponse(BaseModel):
     backend: str = "scripted"
     summary: Optional[str] = None
     fallback_notice: Optional[str] = None
+    trials: list[dict[str, Any]] = Field(default_factory=list)
     run: dict[str, Any]
     trial: dict[str, Any]
     evaluation: dict[str, Any]
@@ -190,20 +194,20 @@ def execute_custom_attack(
     if body.base_scenario_id:
         base_task = get_task(body.base_scenario_id, db=db)
         if base_task:
-            permitted_tools = list(base_task.permitted_tools)
-            permitted_recipients = list(base_task.permitted_recipients)
-            max_customer_records = base_task.max_customer_records
+            permitted_tools = body.permitted_tools if body.permitted_tools is not None else list(base_task.permitted_tools)
+            permitted_recipients = body.permitted_recipients if body.permitted_recipients is not None else list(base_task.permitted_recipients)
+            max_customer_records = body.max_customer_records if body.max_customer_records is not None else base_task.max_customer_records
             for d_id, d_data in base_task.documents.items():
                 if d_id != entry_doc_id:
                     documents[d_id] = d_data
         else:
-            permitted_tools = ["read_document", "search_customers"]
-            permitted_recipients = []
-            max_customer_records = 1
+            permitted_tools = body.permitted_tools if body.permitted_tools is not None else ["read_document"]
+            permitted_recipients = body.permitted_recipients if body.permitted_recipients is not None else []
+            max_customer_records = body.max_customer_records if body.max_customer_records is not None else 1
     else:
-        permitted_tools = ["read_document", "search_customers"]
-        permitted_recipients = []
-        max_customer_records = 1
+        permitted_tools = body.permitted_tools if body.permitted_tools is not None else ["read_document"]
+        permitted_recipients = body.permitted_recipients if body.permitted_recipients is not None else []
+        max_customer_records = body.max_customer_records if body.max_customer_records is not None else 1
 
     if "read_document" not in permitted_tools:
         permitted_tools.append("read_document")
@@ -246,6 +250,10 @@ def execute_custom_attack(
     db.merge(gen_row)
     db.commit()
 
+    actual_n_runs = body.n_runs
+    if actual_n_runs is None:
+        actual_n_runs = 10 if body.backend == "ollama" else 1
+
     # Run through normal pipeline with chosen defense and backend
     run_row = execute_run(
         db,
@@ -253,7 +261,7 @@ def execute_custom_attack(
         defense=body.defense,
         backend=body.backend,
         backend_config=body.backend_config,
-        n_runs=body.n_runs,
+        n_runs=actual_n_runs,
     )
     trial_row = run_row.trials[0]
 
@@ -324,6 +332,23 @@ def execute_custom_attack(
         "checks": eval_data.get("checks", []),
     }
 
+    trials_summary = []
+    for t_row in run_row.trials:
+        t_eval = t_row.evaluation
+        t_verdict = t_eval.verdict if t_eval else "inconclusive"
+        
+        t_events_query = db.query(EventRow).filter(EventRow.trial_id == t_row.trial_id).order_by(EventRow.seq).all()
+        t_events = [TraceEvent.model_validate_json(r.payload) for r in t_events_query]
+        tools_called = []
+        for e in t_events:
+            if e.type == "tool_call" and getattr(e, "tool_name", None):
+                tools_called.append(e.tool_name)
+        trials_summary.append({
+            "trial_id": t_row.trial_id,
+            "verdict": t_verdict,
+            "tools_called": tools_called,
+        })
+
     return CustomAttackResponse(
         task_id=task_spec.task_id,
         run_id=run_row.run_id,
@@ -339,6 +364,7 @@ def execute_custom_attack(
         backend=getattr(run_row, "backend", "scripted"),
         summary=summary_str,
         fallback_notice=getattr(run_row, "fallback_notice", None),
+        trials=trials_summary,
         run=run_dict,
         trial=trial_dict,
         evaluation=eval_dict,

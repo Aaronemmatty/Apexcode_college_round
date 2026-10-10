@@ -167,6 +167,9 @@ def parse_action_directives(text: str) -> list[tuple[str, dict[str, str]]]:
     return actions
 
 
+class ParseError(Exception):
+    pass
+
 class OllamaAgent(AgentBackend):
     """Live LLM Agent communicating with Ollama over localhost HTTP.
 
@@ -273,7 +276,7 @@ class OllamaAgent(AgentBackend):
 
         return Source.USER_TASK
 
-    def _parse_tool_calls(self, response_dict: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    def _parse_tool_calls(self, response_dict: dict[str, Any]) -> tuple[list[tuple[str, dict[str, Any]]], str]:
         """Parse tool calls from Ollama chat response structure."""
         message = response_dict.get("message", {})
         tool_calls = message.get("tool_calls", [])
@@ -295,42 +298,107 @@ class OllamaAgent(AgentBackend):
                     args = {}
                 if name:
                     parsed_actions.append((name, args))
-            return parsed_actions
+            return parsed_actions, "structured"
 
         content = message.get("content", "")
         if not content:
-            return []
+            return [], "structured"
 
         # Try parsing [[ACTION ...]] directives
         directive_actions = parse_action_directives(content)
         if directive_actions:
-            return [(t, a) for t, a in directive_actions]
+            return [(t, a) for t, a in directive_actions], "structured"
 
-        # Try parsing markdown JSON block e.g. ```json { "tool": "...", "arguments": {...} } ```
-        json_pattern = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', content, re.DOTALL)
-        if json_pattern:
-            try:
-                data = json.loads(json_pattern.group(1))
-                if "tool" in data and "arguments" in data:
-                    return [(data["tool"], data["arguments"])]
-                if "tool" in data:
-                    return [(data["tool"], {k: v for k, v in data.items() if k != "tool"})]
-            except Exception:
-                pass
+        valid_tool_names = set(TOOL_NAMES)
 
-        # Try parsing raw top-level JSON object
-        trimmed = content.strip()
-        if trimmed.startswith("{") and trimmed.endswith("}"):
-            try:
-                data = json.loads(trimmed)
-                if "tool" in data and "arguments" in data:
-                    return [(data["tool"], data["arguments"])]
-                if "name" in data and "arguments" in data:
-                    return [(data["name"], data["arguments"])]
-            except Exception:
-                pass
+        def extract_actions(obj: Any) -> list[tuple[str, dict[str, Any]]]:
+            found = []
+            if isinstance(obj, dict):
+                name = obj.get("name") or obj.get("tool")
+                if name in valid_tool_names:
+                    args = obj.get("parameters") or obj.get("arguments") or {}
+                    if isinstance(args, dict):
+                        found.append((name, args))
+            elif isinstance(obj, list):
+                for item in obj:
+                    found.extend(extract_actions(item))
+            return found
 
-        return []
+        def extract_json_objects(text: str) -> list[str]:
+            objs = []
+            depth = 0
+            start = -1
+            for i, char in enumerate(text):
+                if char == '{':
+                    if depth == 0:
+                        start = i
+                    depth += 1
+                elif char == '}':
+                    depth -= 1
+                    if depth == 0 and start != -1:
+                        objs.append(text[start:i+1])
+                        start = -1
+            # Also extract arrays
+            depth = 0
+            start = -1
+            for i, char in enumerate(text):
+                if char == '[':
+                    if depth == 0:
+                        start = i
+                    depth += 1
+                elif char == ']':
+                    depth -= 1
+                    if depth == 0 and start != -1:
+                        objs.append(text[start:i+1])
+                        start = -1
+            return objs
+
+        candidates = []
+        fences = re.findall(r'```(?:json)?\s*(.*?)\s*```', content, re.DOTALL)
+        if fences:
+            candidates.extend(fences)
+        else:
+            candidates.extend(extract_json_objects(content))
+
+        if not candidates:
+            if '"name"' in content or '"tool"' in content:
+                raise ParseError("Text contained malformed JSON resembling a tool call.")
+            return [], "structured"
+
+        parsed_actions = []
+        potential_error = False
+
+        for candidate in candidates:
+            candidate = candidate.strip()
+            if len(candidate) > 5000:
+                continue
+            if not candidate.startswith("{") and not candidate.startswith("["):
+                continue
+
+            if '"name"' in candidate or '"tool"' in candidate:
+                try:
+                    obj = json.loads(candidate)
+                    actions = extract_actions(obj)
+                    if actions:
+                        parsed_actions.extend(actions)
+                    else:
+                        # Parsed, but no valid tool actions
+                        pass
+                except json.JSONDecodeError:
+                    potential_error = True
+
+        if parsed_actions:
+            unique_actions = []
+            for action in parsed_actions:
+                if action not in unique_actions:
+                    unique_actions.append(action)
+            return unique_actions, "text_json"
+
+        if potential_error or ('"name"' in content or '"tool"' in content):
+            raise ParseError("Text contained malformed JSON resembling a tool call.")
+
+        return [], "structured"
+
 
     def run(self) -> None:
         """Execute the Ollama agent loop up to max_steps."""
@@ -384,7 +452,18 @@ class OllamaAgent(AgentBackend):
 
             # Parse tool calls
             try:
-                actions = self._parse_tool_calls(response)
+                actions, format_type = self._parse_tool_calls(response)
+                # Ensure we capture format_type without altering trace schema
+                if format_type == "text_json":
+                    self.task.description = (self.task.description or "") + " [Format: text_json]"
+            except ParseError as pe:
+                self.inconclusive = True
+                self.inconclusive_reason = f"Failed to parse Ollama reply: {pe}"
+                self.recorder.record_final_output(
+                    content=f"INCONCLUSIVE: {self.inconclusive_reason}",
+                    step=current_step,
+                )
+                return
             except Exception as pe:
                 self.inconclusive = True
                 self.inconclusive_reason = f"Failed to parse Ollama reply: {pe}"

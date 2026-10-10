@@ -194,8 +194,8 @@ def execute_run(
 
     # Multi-run count for live models (default 3, max 5, min 1)
     if effective_backend == "ollama":
-        runs_count = n_runs if n_runs is not None else 3
-        runs_count = max(1, min(runs_count, 5))
+        runs_count = n_runs if n_runs is not None else 10
+        runs_count = max(1, min(runs_count, 20))
     else:
         runs_count = 1
 
@@ -211,58 +211,63 @@ def execute_run(
         created_at=now_utc,
     )
     db.add(run_row)
-    db.flush()
+    db.commit()
+
+    from app.db.session import SessionLocal
 
     for idx in range(runs_count):
-        trial_id = f"trial_{uuid.uuid4().hex[:8]}"
-        trial_row = TrialRow(
-            trial_id=trial_id,
-            run_id=run_id,
-            task_id=task_id,
-            backend=effective_backend,
-            status="running",
-            started_at=datetime.now(timezone.utc),
-        )
-        db.add(trial_row)
-        db.flush()
-
-        simulated = simulate_trial(
-            task=task,
-            defense=defense,
-            run_id=run_id,
-            trial_id=trial_id,
-            backend=effective_backend,
-            backend_config=backend_config,
-        )
-
-        # Persist all recorded events
-        for seq, event in enumerate(simulated.events, start=1):
-            event_row = EventRow(
+        with SessionLocal() as trial_db:
+            trial_id = f"trial_{uuid.uuid4().hex[:8]}"
+            trial_row = TrialRow(
                 trial_id=trial_id,
-                seq=seq,
-                payload=event.model_dump_json(),
+                run_id=run_id,
+                task_id=task_id,
+                backend=effective_backend,
+                status="running",
+                started_at=datetime.now(timezone.utc),
             )
-            db.add(event_row)
+            trial_db.add(trial_row)
+            trial_db.commit()
+    
+            simulated = simulate_trial(
+                task=task.model_copy(deep=True),
+                defense=defense,
+                run_id=run_id,
+                trial_id=trial_id,
+                backend=effective_backend,
+                backend_config=backend_config,
+            )
+    
+            # Persist all recorded events
+            for seq, event in enumerate(simulated.events, start=1):
+                event_row = EventRow(
+                    trial_id=trial_id,
+                    seq=seq,
+                    payload=event.model_dump_json(),
+                )
+                trial_db.add(event_row)
+    
+            env_state_row = TrialEnvStateRow(
+                trial_id=trial_id,
+                state_json=json.dumps(simulated.env_state),
+            )
+            trial_db.add(env_state_row)
+    
+            eval_row = EvaluationRow(
+                trial_id=trial_id,
+                verdict=simulated.evaluation.verdict.value,
+                result_json=simulated.evaluation.model_dump_json(),
+            )
+            trial_db.add(eval_row)
+    
+            trial_row.status = simulated.status
+            trial_row.error = simulated.error
+            trial_row.finished_at = datetime.now(timezone.utc)
+            if simulated.model_replies:
+                trial_row.model_replies_json = json.dumps(simulated.model_replies)
+            trial_db.commit()
 
-        env_state_row = TrialEnvStateRow(
-            trial_id=trial_id,
-            state_json=json.dumps(simulated.env_state),
-        )
-        db.add(env_state_row)
-
-        eval_row = EvaluationRow(
-            trial_id=trial_id,
-            verdict=simulated.evaluation.verdict.value,
-            result_json=simulated.evaluation.model_dump_json(),
-        )
-        db.add(eval_row)
-
-        trial_row.status = simulated.status
-        trial_row.error = simulated.error
-        trial_row.finished_at = datetime.now(timezone.utc)
-        if simulated.model_replies:
-            trial_row.model_replies_json = json.dumps(simulated.model_replies)
-
+    db.refresh(run_row)
     run_row.status = "completed" if all(t.status in ("completed", "inconclusive") for t in run_row.trials) else "failed"
     setattr(run_row, "fallback_notice", fallback_notice)
 

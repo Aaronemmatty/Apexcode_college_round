@@ -160,3 +160,39 @@ def test_get_trial_evaluation_not_found(client):
     data = response.json()
     assert "error" in data
     assert data["error"]["code"] == "HTTP_404"
+
+
+def test_custom_attack_n_runs_validation(client):
+    payload = {"text": "Hello", "n_runs": 0}
+    r = client.post("/api/attacks/custom", json=payload)
+    assert r.status_code == 422
+    
+    payload["n_runs"] = 21
+    r = client.post("/api/attacks/custom", json=payload)
+    assert r.status_code == 422
+
+    payload["n_runs"] = 1
+    r = client.post("/api/attacks/custom", json=payload)
+    assert r.status_code == 200
+
+def test_custom_attack_n_runs_lock_fix(client, monkeypatch):
+    import app.orchestrator
+    monkeypatch.setattr(app.orchestrator, "check_ollama_available", lambda *a, **kw: (True, ""))
+    
+    class MockOllamaAgent:
+        def __init__(self, *args, **kwargs):
+            self.inconclusive = False
+            self.is_replay = True
+            self.saved_replies = [{"message": {"content": "Done."}}]
+            self.recorded_replies = []
+        def run(self):
+            pass
+            
+    monkeypatch.setattr("app.orchestrator.OllamaAgent", MockOllamaAgent)
+
+    payload = {"text": "Test", "backend": "ollama", "n_runs": 10}
+    # Run twice back-to-back to verify no sqlite locks
+    r1 = client.post("/api/attacks/custom", json=payload)
+    assert r1.status_code == 200
+    r2 = client.post("/api/attacks/custom", json=payload)
+    assert r2.status_code == 200

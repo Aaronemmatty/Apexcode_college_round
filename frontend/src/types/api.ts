@@ -234,6 +234,11 @@ export interface CustomAttackResult {
   backend?: string;
   summary?: string | null;
   fallback_notice?: string | null;
+  trials?: {
+    trial_id: string;
+    verdict: string;
+    tools_called: string[];
+  }[];
   run: any;
   trial: any;
   evaluation: any;

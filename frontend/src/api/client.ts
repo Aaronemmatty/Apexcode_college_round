@@ -120,7 +120,7 @@ export function useAsync<T>(asyncFn: () => Promise<T>, dependencies: any[] = [])
   return { data, error, loading, reload: execute };
 }
 
-export const startCampaign = (body: { budget: number; seed: number; defense: string; seed_scenarios?: string[]; backend?: string }) =>
+export const startCampaign = (body: { budget: number; seed: number; defense: string; seed_scenarios?: string[]; backend?: string; backend_config?: any }) =>
   fetchApi<CampaignResult>('/api/campaigns', {
     method: 'POST',
     body: JSON.stringify(body),
@@ -133,7 +133,7 @@ export const getCampaign = (campaignId: string) =>
   fetchApi<CampaignResult>(`/api/campaigns/${campaignId}`);
 
 
-export const executeCustomAttack = (body: { payload: string; defense: string; seed?: number; title?: string; backend?: string; n_runs?: number }) =>
+export const executeCustomAttack = (body: { payload: string; defense: string; seed?: number; title?: string; backend?: string; n_runs?: number; permitted_tools?: string[]; permitted_recipients?: string[]; max_customer_records?: number }) =>
   fetchApi<{
     task_id: string;
     run_id: string;
@@ -173,6 +173,9 @@ export const postCustomAttack = (body: {
   backend?: string;
   n_runs?: number;
   backend_config?: any;
+  permitted_tools?: string[];
+  permitted_recipients?: string[];
+  max_customer_records?: number;
 }) =>
   fetchApi<CustomAttackResult>('/api/attacks/custom', {
     method: 'POST',
