@@ -175,7 +175,7 @@ function ReplaySection({ trialId }: { trialId: string }) {
   return (
     <Card className="bg-slate-900 border-slate-800">
       <CardHeader>
-        <CardTitle className="text-lg flex items-center justify-between">
+        <CardTitle className="text-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           Deterministic Replay
           <Button size="sm" onClick={handleReplay} disabled={loading} variant="secondary">
             {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FastForward className="w-4 h-4 mr-2" />}

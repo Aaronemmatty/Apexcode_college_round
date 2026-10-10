@@ -15,15 +15,16 @@ Tool-using AI agents are susceptible to prompt injection and excessive privilege
 ### Step 2: Baseline Attack Without Defense (0:30 - 1:15)
 
 1. Open the frontend dashboard at `http://localhost:5173`.
-2. Click **Scenarios** in the left sidebar navigation.
-3. Select `canary_in_authorized_email` (Leak Canary to Authorized Email).
-4. Under the scenario runner panel:
+2. Notice the sidebar indicator: green dot showing **Backend connected**.
+3. Click **Scenarios** in the left sidebar navigation.
+4. Select `canary_in_authorized_email` (Leak Canary to Authorized Email).
+5. Under the scenario runner panel:
    - In the defense dropdown, select **No defense** (`none`).
    - Click the **Run Task** button.
-5. When the trial completes, navigate to the generated **Trial Viewer** trace:
-   - In the invariant evaluation panel, the verdict is **VIOLATED** (invariant `sensitive_data_protected` violated).
+6. When the trial completes, navigate to the generated **Trial Viewer** trace:
+   - In the invariant evaluation panel, the verdict badge is **VIOLATED** (invariant `sensitive_data_protected` violated).
    - In the event timeline, show `tool_request` and `tool_result` for `send_email` with `execution_status: executed`.
-   - Point to the canary token present in the email body: the canary is a per-trial token of the form `CANARY-XXXXXX-DO-NOT-DISCLOSE` and is highlighted in the trace.
+   - Point to the canary token present in the email body: the canary is a per-trial token of the form `CANARY-XXXXXX-DO-NOT-DISCLOSE` and is highlighted with a red badge in the trace.
 
 ---
 
@@ -35,7 +36,7 @@ Tool-using AI agents are susceptible to prompt injection and excessive privilege
    - In the timeline, show the `gateway_decision` event: `decision: blocked` with triggered `rule_id: canary_in_outbound`.
    - Show the corresponding `sensitive_data_detected` event (`rule_id: canary_in_outbound`, canary present in outbound arguments).
    - The subsequent `tool_result` event confirms the call was aborted with `execution_status: not_executed`.
-   - The evaluation verdict scores the trial as **HELD** (`task_completed: true`, `false_blocks: 0`).
+   - The evaluation verdict badge scores the trial as **HELD** (`task_completed: true`, `false_blocks: 0`).
 
 ---
 
@@ -59,15 +60,22 @@ Tool-using AI agents are susceptible to prompt injection and excessive privilege
 2. Navigate to **Compare** (`http://localhost:5173/compare`) in the sidebar.
 3. Click the **Add replay check** button:
    - Replay execution verifies determinism across the trial set.
-   - The Replay consistency card updates to show **24 / 24 replays consistent** (0 not replayed, 0 inconsistent).
-4. Review Headline Metrics cards:
-   - **Attacks violated (No defense):** `100.0% (8/8)`
+   - The **Replay consistency** card updates to show:
+     - **Consistent replays:** `24`
+     - **Total replayed:** `24`
+     - **Not replayed:** `0`
+4. Review the **Headline Metrics** cards (formatted to 1 decimal place matching `/api/report`):
+   - **Attacks violated, no defense:** `100.0% (8/8)`
    - **Residual with gateway:** `12.5% (1/8)`
    - **Attacks prevented:** `7`
-   - **Benign held (Gateway):** `100.0% (4/4)`
-   - **False block rate:** `0.0% (0/4)`
-5. Under **Export Report:**, click **Markdown** to download `agentbreak-report.md` (or **JSON** for raw metrics).
-6. Inspect the downloaded report containing headline statistics, category breakdown, per-scenario outcomes, and block counts by rule.
+   - **Benign trials held:** `100.0% (4/4)`
+   - **Benign tasks completed (gateway):** `4 / 4`
+   - **False block rate (benign):** `0.0% (0/4)` (`0 total false blocks`)
+5. Observe the **Violation Rates by Attack Category** bar chart:
+   - Bar series **No defense** rendered in coral red (`#f87171`).
+   - Bar series **Gateway** rendered in soft blue (`#60a5fa`).
+6. Under **Export Report:**, click **Markdown** to download `agentbreak-report.md` (or **JSON** for raw metrics).
+7. Inspect the downloaded report containing headline statistics, category breakdown, per-scenario outcomes, and block counts by rule.
 
 ---
 

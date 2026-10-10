@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { AlertCircle, ArrowRight, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { RunMatrixLauncher } from '../components/RunMatrixLauncher';
+import { formatRate } from '../lib/format';
 
 export default function Overview() {
   const { data: scenarios, error: scenariosErr, loading: scenariosLoading, reload: reloadScenarios } = useAsync(listScenarios);
@@ -51,8 +52,7 @@ export default function Overview() {
     );
   }
 
-  const getPercent = (n: number, m: number) => 
-    m === 0 ? 'No data' : `${Math.round((n / m) * 100)}% (${n}/${m})`;
+
 
   const scenarioMap = new Map(scenarios.map(s => [s.task_id, s]));
   let totalTrials = runs.reduce((acc, r) => acc + r.trials.length, 0);
@@ -79,7 +79,7 @@ export default function Overview() {
             <CardTitle className="text-sm font-medium text-slate-400">Attack Success (No Defense)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-400">{getPercent(metrics.attack_violated_none.n, metrics.attack_violated_none.m)}</div>
+            <div className="text-2xl font-bold text-red-400">{formatRate(metrics.attack_violated_none.n, metrics.attack_violated_none.m)}</div>
           </CardContent>
         </Card>
 
@@ -88,7 +88,7 @@ export default function Overview() {
             <CardTitle className="text-sm font-medium text-slate-400">Residual with gateway</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-400">{getPercent(metrics.attack_violated_gateway.n, metrics.attack_violated_gateway.m)}</div>
+            <div className="text-2xl font-bold text-amber-400">{formatRate(metrics.attack_violated_gateway.n, metrics.attack_violated_gateway.m)}</div>
           </CardContent>
         </Card>
 
@@ -105,7 +105,7 @@ export default function Overview() {
             </Tooltip>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-400">{getPercent(metrics.benign_held_gateway.n, metrics.benign_held_gateway.m)}</div>
+            <div className="text-2xl font-bold text-emerald-400">{formatRate(metrics.benign_held_gateway.n, metrics.benign_held_gateway.m)}</div>
           </CardContent>
         </Card>
       </div>

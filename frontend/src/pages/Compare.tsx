@@ -8,6 +8,7 @@ import { AlertCircle, RefreshCw, Download, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { RunMatrixLauncher } from '../components/RunMatrixLauncher';
+import { formatRate } from '../lib/format';
 
 export default function Compare() {
   const { data, error, loading, reload } = useAsync(getCompare);
@@ -41,8 +42,7 @@ export default function Compare() {
     );
   }
 
-  const getPercent = (n: number, m: number) => 
-    m === 0 ? 'No data' : `${Math.round((n / m) * 100)}% (${n}/${m})`;
+
 
   const chartData = Object.entries(data.by_category).map(([cat, stat]) => ({
     category: cat,
@@ -131,7 +131,7 @@ export default function Compare() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-red-400">
-              {getPercent(data.attack_violated_none.n, data.attack_violated_none.m)}
+              {formatRate(data.attack_violated_none.n, data.attack_violated_none.m)}
             </div>
           </CardContent>
         </Card>
@@ -141,7 +141,7 @@ export default function Compare() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-amber-400">
-              {getPercent(data.attack_violated_gateway.n, data.attack_violated_gateway.m)}
+              {formatRate(data.attack_violated_gateway.n, data.attack_violated_gateway.m)}
             </div>
           </CardContent>
         </Card>
@@ -159,7 +159,7 @@ export default function Compare() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-400">
-              {getPercent(data.benign_held_gateway.n, data.benign_held_gateway.m)}
+              {formatRate(data.benign_held_gateway.n, data.benign_held_gateway.m)}
             </div>
           </CardContent>
         </Card>
@@ -182,7 +182,7 @@ export default function Compare() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-400">
-              {getPercent(data.false_block_rate.n, data.false_block_rate.m)}
+              {formatRate(data.false_block_rate.n, data.false_block_rate.m)}
             </div>
             <p className="text-xs text-slate-500 mt-1">{data.false_blocks_total} total false blocks</p>
           </CardContent>
