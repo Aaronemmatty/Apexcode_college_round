@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, ArrowRight, Info, ShieldAlert, Sparkles, Terminal } from 'lucide-react';
+import { AlertCircle, ArrowRight, Info, ShieldAlert, Sparkles, Terminal, Plug } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { RunMatrixLauncher } from '../components/RunMatrixLauncher';
 import { formatRate } from '../lib/format';
@@ -373,6 +373,19 @@ export default function Overview() {
                 <p className="text-xs text-slate-400">Full 23-scenario matrix with rule attribution breakdown.</p>
               </div>
               <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-blue-400" />
+            </CardContent>
+          </Card>
+
+          <Card className="bg-slate-900 border-slate-800 hover:border-indigo-500/50 transition-colors group cursor-pointer" onClick={() => window.location.href = '/attack-lab'}>
+            <CardContent className="p-4 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <Plug className="w-4 h-4 text-indigo-400" />
+                  <h3 className="font-semibold text-slate-200 group-hover:text-indigo-300">Plug-in Agent Connector</h3>
+                </div>
+                <p className="text-xs text-slate-400">Test external HTTP agents (examples/external_agent.py).</p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-slate-600 group-hover:text-indigo-400" />
             </CardContent>
           </Card>
         </div>

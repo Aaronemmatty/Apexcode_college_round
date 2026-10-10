@@ -28,6 +28,7 @@ import {
   ChevronUp,
   History,
   Download,
+  Plug,
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
@@ -286,9 +287,10 @@ export default function Campaign() {
                 onChange={(e) => setDefense(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium"
               >
-                <option value="gateway">Security Gateway (Defense Validation)</option>
-                <option value="none">None (Undefended Baseline)</option>
-                <option value="prompt_hardening">Prompt Hardening</option>
+                <option value="gateway">Security Gateway (gateway)</option>
+                <option value="none">No Defense (none)</option>
+                <option value="prompt_hardening">Prompt Hardening (prompt_hardening)</option>
+                <option value="both">Both Defenses (both)</option>
               </select>
             </div>
 
@@ -301,25 +303,43 @@ export default function Campaign() {
                 onChange={(e) => setBackend(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium"
               >
-                <option value="scripted">Scripted Agent (default)</option>
-                <option value="ollama">Ollama LLM</option>
+                <option value="scripted">Built-in Scripted Agent (default, simulated)</option>
+                <option value="ollama">Built-in Ollama LLM (local model)</option>
+                <option value="http_agent">External HTTP Agent (Plug-in Connector)</option>
               </select>
             </div>
 
             {backend === 'http_agent' && (
-                <div>
-                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-1.5">
-                    Agent Endpoint URL
+              <div className="md:col-span-2 p-3 bg-indigo-950/40 border border-indigo-800/80 rounded-md">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Plug className="w-3.5 h-3.5" /> Plug-in Agent Endpoint URL
                   </label>
+                  <span className="text-[11px] text-indigo-400 font-mono">examples/external_agent.py</span>
+                </div>
+                <div className="flex gap-2">
                   <input
                     type="text"
                     value={agentUrl}
                     onChange={(e) => setAgentUrl(e.target.value)}
                     placeholder="http://localhost:9000/chat"
-                    className="w-full bg-slate-950 border border-slate-800 rounded px-3.5 py-2.5 text-sm text-slate-200 font-mono focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAgentUrl('http://localhost:9000/chat')}
+                    className="text-xs border-indigo-800 text-indigo-300 hover:bg-indigo-950"
+                  >
+                    Reset URL
+                  </Button>
                 </div>
-              )}
+                <p className="text-[11px] text-slate-400 mt-1">
+                  AgentBreak will evaluate your external agent by sending mutation attempts and checking sandbox tool calls.
+                </p>
+              </div>
+            )}
               {backend === 'ollama' && (
               <div>
                 <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-1.5">
