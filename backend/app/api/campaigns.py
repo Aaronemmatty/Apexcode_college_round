@@ -1,7 +1,7 @@
 """Campaign API endpoints for autonomous attack discovery."""
 
 import json
-from typing import Optional
+from typing import Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import desc
@@ -23,6 +23,7 @@ class CampaignCreateRequest(BaseModel):
     seed_scenarios: list[str] = Field(default_factory=list)
     stop_after_bypasses: Optional[int] = None
     backend: str = Field(default="scripted")
+    backend_config: dict[str, Any] = Field(default_factory=dict)
 
 
 @router.post("", status_code=200)
@@ -39,6 +40,7 @@ def start_campaign(
         seed_scenarios=body.seed_scenarios if body.seed_scenarios else None,
         stop_after_bypasses=body.stop_after_bypasses,
         backend=body.backend,
+        backend_config=body.backend_config,
     )
 
 
