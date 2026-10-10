@@ -11,7 +11,7 @@ class ScenarioPlanStep(BaseModel):
 class ScenarioPermissions(BaseModel):
     permitted_tools: list[str] = Field(default_factory=list)
     permitted_recipients: list[str] = Field(default_factory=list)
-    max_customer_records: int | None
+    max_customer_records: int
 
 class ScenarioExpectedDefense(BaseModel):
     verdict: str

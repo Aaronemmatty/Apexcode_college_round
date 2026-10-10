@@ -43,16 +43,16 @@ Apexcode_college_round/
 
 ---
 
-## Quick Start (Windows PowerShell)
+## Quick Start (macOS / zsh)
 
 ### 1. Backend Setup & Run
 
-Open a Windows PowerShell terminal in the repository root:
+Open a terminal in the repository root:
 
-```powershell
+```zsh
 cd backend
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 pytest -v
 uvicorn app.main:app --reload --port 8000
@@ -66,12 +66,14 @@ The backend API will run at `http://localhost:8000`.
 
 ### 2. Frontend Setup & Run
 
-Open a second Windows PowerShell terminal in the repository root:
+Open a second terminal in the repository root:
 
-```powershell
+```zsh
 cd frontend
 npm install
 npm run build
+# Set the backend URL explicitly if running on a different port/host
+export VITE_API_BASE_URL="http://localhost:8000"
 npm run dev
 ```
 

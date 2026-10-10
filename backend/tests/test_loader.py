@@ -27,7 +27,7 @@ def test_missing_max_customer_records_fails():
         ScenarioDef(**data)
     assert "max_customer_records" in str(exc.value)
 
-def test_explicit_max_customer_records_none_succeeds():
+def test_explicit_max_customer_records_none_fails():
     data = {
         "scenario_id": "test",
         "title": "Test",
@@ -46,5 +46,6 @@ def test_explicit_max_customer_records_none_succeeds():
             "gateway": {"verdict": "held", "violated_invariants": [], "blocked_rules": [], "task_completed": True, "false_blocks": 0, "residual": False}
         }
     }
-    scenario = ScenarioDef(**data)
-    assert scenario.permissions.max_customer_records is None
+    with pytest.raises(ValidationError) as exc:
+        ScenarioDef(**data)
+    assert "max_customer_records" in str(exc.value)
