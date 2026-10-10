@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SeverityBadge } from '@/components/ui/severity-badge';
 import { Button } from '@/components/ui/button';
-// EventTimeline import removed
+import { EventTimeline } from '../components/EventTimeline';
 import {
   AlertCircle,
   AlertTriangle,
@@ -26,7 +26,6 @@ import {
   replayTrial,
   useAsync,
   getOllamaModels,
-  getAttackLibrary,
   listRuns,
 } from '../api/client';
 import type {
