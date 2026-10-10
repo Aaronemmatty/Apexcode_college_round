@@ -111,6 +111,7 @@ class HttpAgentAdapter(AgentAdapter):
     def __init__(self, endpoint_url: str, timeout: float = 15.0) -> None:
         self.endpoint_url = endpoint_url
         self.timeout = timeout
+        self.error: Optional[str] = None
 
     def run(
         self,
@@ -131,42 +132,105 @@ class HttpAgentAdapter(AgentAdapter):
         payload = {
             "task_id": task.task_id,
             "user_prompt": task.user_prompt,
+            "message": task.user_prompt,
+            "prompt": task.user_prompt,
             "tools": tool_catalog,
             "documents": task.documents,
             "defense": defense,
         }
 
-        # Send HTTP request to external agent endpoint
-        data_bytes = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
-            self.endpoint_url,
-            data=data_bytes,
-            headers={"Content-Type": "application/json", "User-Agent": "AgentBreak-TestRunner/1.0"},
-            method="POST",
-        )
+        # Normalize URL: strip browser fragments (e.g. #/employee/chat)
+        clean_url = self.endpoint_url.split("#")[0].rstrip("/")
+        from urllib.parse import urlparse
+        parsed = urlparse(clean_url)
+        base_origin = f"{parsed.scheme}://{parsed.netloc}"
 
-        try:
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                body = resp.read().decode("utf-8")
-                reply = json.loads(body)
-        except Exception as e:
-            logger.warning(f"Failed to communicate with external agent at {self.endpoint_url}: {e}")
-            recorder.record_agent_input(
-                content=f"[AgentBreak Connector Error] Failed to reach external agent: {e}",
+        candidates = [clean_url]
+        for fallback in [f"{base_origin}/api/chat", f"{base_origin}/chat"]:
+            if fallback not in candidates:
+                candidates.append(fallback)
+
+        data_bytes = json.dumps(payload).encode("utf-8")
+        reply = None
+        last_error = None
+        successful_url = clean_url
+
+        for target_url in candidates:
+            req = urllib.request.Request(
+                target_url,
+                data=data_bytes,
+                headers={"Content-Type": "application/json", "User-Agent": "AgentBreak-TestRunner/1.0"},
+                method="POST",
             )
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    body = resp.read().decode("utf-8")
+                    reply = json.loads(body)
+                    successful_url = target_url
+                    break
+            except Exception as e:
+                last_error = e
+                # If 404 or 405 on base URL, continue to try fallback endpoint
+                continue
+
+        if reply is None:
+            err_msg = f"Failed to reach external agent at {self.endpoint_url}: {last_error}"
+            logger.warning(err_msg)
+            recorder.record_agent_input(
+                content=f"[AgentBreak Connector Error] {err_msg}",
+            )
+            recorder.record_final_output(
+                content=f"[AgentBreak Connector Error] {err_msg}",
+                step=1,
+            )
+            self.error = err_msg
             return recorder.events
 
         # Process external agent's requested tool calls
-        tool_calls = reply.get("tool_calls", [])
-        if not isinstance(tool_calls, list):
-            logger.warning(f"External agent returned invalid tool_calls structure: {reply}")
-            return recorder.events
+        raw_tool_calls = (
+            reply.get("tool_calls")
+            or reply.get("tools")
+            or reply.get("actions")
+            or (reply.get("message", {}).get("tool_calls") if isinstance(reply.get("message"), dict) else None)
+            or []
+        )
+        if not isinstance(raw_tool_calls, list):
+            raw_tool_calls = []
+
+        # Also parse from text if agent returned conversational content
+        text_content = (
+            reply.get("reply")
+            or reply.get("content")
+            or reply.get("output")
+            or (reply.get("message", {}).get("content") if isinstance(reply.get("message"), dict) else None)
+            or ""
+        )
+        if isinstance(text_content, str) and text_content and not raw_tool_calls:
+            from app.agent.ollama import parse_action_directives
+            extracted = parse_action_directives(text_content)
+            raw_tool_calls = [{"tool": t, "arguments": a} for t, a in extracted]
 
         step = 0
-        for item in tool_calls:
+        for item in raw_tool_calls:
+            if not isinstance(item, dict):
+                continue
             step += 1
-            tool_name = item.get("tool")
-            args = item.get("arguments", {})
+            tool_name = (
+                item.get("tool")
+                or item.get("name")
+                or (item.get("function", {}).get("name") if isinstance(item.get("function"), dict) else None)
+            )
+            args = (
+                item.get("arguments")
+                or item.get("parameters")
+                or (item.get("function", {}).get("arguments") if isinstance(item.get("function"), dict) else None)
+                or {}
+            )
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except Exception:
+                    args = {"query": args}
             if not tool_name:
                 continue
 
@@ -190,9 +254,14 @@ class HttpAgentAdapter(AgentAdapter):
                 result=outcome.result or {},
                 rule_id=outcome.rule_id,
                 step=step,
+                decision=outcome.decision,
             )
             logger.info(f"External agent call {tool_name}: status={outcome.execution_status}")
 
-        # Emit final agent output so the evaluator can assess the trial
-        recorder.record_final_output(content="[External agent completed tool calls]", step=step + 1)
+        # Record final output so evaluator has a complete trace
+        final_text = str(text_content) if (step == 0 and text_content) else f"External agent completed {step} tool calls."
+        recorder.record_final_output(
+            content=final_text,
+            step=step + 1,
+        )
         return recorder.events
