@@ -34,6 +34,7 @@ export default function Overview() {
   const { showToast } = useToast();
   const [lastUpdated, setLastUpdated] = useState<string>(new Date().toLocaleTimeString());
   const [replaying, setReplaying] = useState(false);
+  const [dataSourceMode, setDataSourceMode] = useState<'latest' | 'all'>('latest');
 
   const {
     data: scenarios, error: scenariosErr, loading: scenariosLoading, reload: reloadScenarios,
@@ -125,47 +126,90 @@ export default function Overview() {
     );
   }
 
-  // Metric calculation from /api/compare
-  const noneN = metrics.attack_violated_none?.n ?? 0;
-  const noneM = metrics.attack_violated_none?.m ?? 0;
-  const gwN = metrics.attack_violated_gateway?.n ?? 0;
-  const gwM = metrics.attack_violated_gateway?.m ?? 0;
-  const preventedCount = metrics.attack_prevented ?? 0;
+  // Data Calculations based on selected dataSourceMode
+  const scenarioMap = new Map((scenarios || []).map((s) => [s.task_id, s]));
 
-  const benignHeld = metrics.benign_held_gateway?.n ?? 0;
-  const benignTotal = metrics.benign_held_gateway?.m ?? 0;
-  const falseBlocksCount = metrics.false_blocks_total ?? 0;
+  let noneN = 0;
+  let noneM = 0;
+  let gwN = 0;
+  let gwM = 0;
+  let benignHeld = 0;
+  let benignTotal = 0;
+  let falseBlocksCount = 0;
 
-  // Group stats for chart & table
   const groupStats: Record<string, { total: number; noneViolated: number; gwViolated: number }> = {};
   for (const grp of ATTACK_GROUPS) groupStats[grp] = { total: 0, noneViolated: 0, gwViolated: 0 };
-  if (metrics.per_scenario) {
-    for (const sc of metrics.per_scenario) {
-      if (sc.kind !== 'attack') continue;
-      const grp = sc.group || 'Direct Injection';
-      if (!groupStats[grp]) groupStats[grp] = { total: 0, noneViolated: 0, gwViolated: 0 };
-      groupStats[grp].total += 1;
-      if (sc.none?.verdict === 'violated') groupStats[grp].noneViolated += 1;
-      if (sc.gateway?.verdict === 'violated') groupStats[grp].gwViolated += 1;
+
+  const severityCounts: Record<string, number> = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
+
+  if (dataSourceMode === 'all') {
+    for (const r of runs) {
+      const defName = r.defense || 'none';
+      const sc = scenarioMap.get(r.task_id);
+      const isAttack = sc?.kind === 'attack';
+      const grp = sc?.group || 'Direct Injection';
+
+      for (const t of r.trials || []) {
+        const verdict = t.verdict || 'inconclusive';
+        if (isAttack) {
+          if (defName === 'none') {
+            noneM += 1;
+            groupStats[grp].total += 1;
+            if (verdict === 'violated') {
+              noneN += 1;
+              groupStats[grp].noneViolated += 1;
+              const sev = (sc?.severity?.toUpperCase() || 'MEDIUM');
+              if (severityCounts[sev] !== undefined) severityCounts[sev] += 1;
+            }
+          } else if (defName === 'gateway') {
+            gwM += 1;
+            if (verdict === 'violated') {
+              gwN += 1;
+              groupStats[grp].gwViolated += 1;
+            }
+          }
+        } else {
+          if (defName === 'gateway') {
+            benignTotal += 1;
+            if (verdict === 'held') benignHeld += 1;
+          }
+        }
+      }
+    }
+  } else {
+    // Mode: Latest Benchmark Suite (from /api/compare)
+    noneN = metrics.attack_violated_none?.n ?? 0;
+    noneM = metrics.attack_violated_none?.m ?? 0;
+    gwN = metrics.attack_violated_gateway?.n ?? 0;
+    gwM = metrics.attack_violated_gateway?.m ?? 0;
+    benignHeld = metrics.benign_held_gateway?.n ?? 0;
+    benignTotal = metrics.benign_held_gateway?.m ?? 0;
+    falseBlocksCount = metrics.false_blocks_total ?? 0;
+
+    if (metrics.per_scenario) {
+      for (const sc of metrics.per_scenario) {
+        if (sc.kind !== 'attack') continue;
+        const grp = sc.group || 'Direct Injection';
+        if (!groupStats[grp]) groupStats[grp] = { total: 0, noneViolated: 0, gwViolated: 0 };
+        groupStats[grp].total += 1;
+        if (sc.none?.verdict === 'violated') groupStats[grp].noneViolated += 1;
+        if (sc.gateway?.verdict === 'violated') groupStats[grp].gwViolated += 1;
+
+        if (sc.none?.verdict === 'violated') {
+          const sev = (sc.severity?.toUpperCase() || 'MEDIUM');
+          if (severityCounts[sev] !== undefined) severityCounts[sev] += 1;
+        }
+      }
     }
   }
+
+  const preventedCount = Math.max(0, noneN - gwN);
 
   const chartData = ATTACK_GROUPS.map((grp) => ({
     group: grp.replace('/ ', '/\n'),
     'No Defense': groupStats[grp]?.noneViolated || 0,
     Gateway: groupStats[grp]?.gwViolated || 0,
   }));
-
-  // Severity breakdown for violated attack trials with no defense (computed client-side from per_scenario)
-  const severityCounts: Record<string, number> = { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0 };
-  for (const sc of metrics.per_scenario ?? []) {
-    if (sc.kind === 'attack' && sc.none?.verdict === 'violated') {
-      const sev = (sc.severity?.toUpperCase() || 'MEDIUM');
-      if (severityCounts[sev] !== undefined) {
-        severityCounts[sev] += 1;
-      }
-    }
-  }
 
   // Most active gateway rule
   const blockRulesSorted = Object.entries(metrics.block_counts_by_rule || {})
@@ -206,7 +250,27 @@ export default function Overview() {
             Controlled test of a deliberately vulnerable, scripted agent. Not a real-world security score.
           </p>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
+          {/* Real Data Scope Mode Switcher */}
+          <div className="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800">
+            <Button
+              size="sm"
+              variant={dataSourceMode === 'latest' ? 'secondary' : 'ghost'}
+              onClick={() => setDataSourceMode('latest')}
+              className={`text-xs h-7 px-2.5 ${dataSourceMode === 'latest' ? 'bg-slate-800 text-white font-semibold' : 'text-slate-400'}`}
+            >
+              Latest Matrix (23)
+            </Button>
+            <Button
+              size="sm"
+              variant={dataSourceMode === 'all' ? 'secondary' : 'ghost'}
+              onClick={() => setDataSourceMode('all')}
+              className={`text-xs h-7 px-2.5 ${dataSourceMode === 'all' ? 'bg-slate-800 text-purple-300 font-semibold' : 'text-slate-400'}`}
+            >
+              All Runs ({runs.length})
+            </Button>
+          </div>
+
           <span className="text-xs text-slate-400 font-mono">
             Last updated <span className="text-slate-200">{lastUpdated}</span>
           </span>
