@@ -179,3 +179,32 @@ export interface CampaignResult {
   attempts: CampaignAttempt[];
   bypasses: CampaignAttempt[];
 }
+
+export interface AttackLibraryItem {
+  scenario_id: string;
+  title: string;
+  severity: Severity | string;
+  group: string;
+  payload_text: string;
+  other_documents: Array<{ doc_id: string; title: string; content?: string }>;
+}
+
+export type AttackLibraryResponse = Record<string, AttackLibraryItem[]>;
+
+export interface CustomAttackResult {
+  task_id: string;
+  run_id: string;
+  trial_id: string;
+  verdict: Verdict;
+  severity: Severity | string;
+  violated_invariants: string[];
+  blocked_rules: string[];
+  directives_found: string[];
+  warning?: string | null;
+  task_completed: boolean;
+  false_blocks: number;
+  run: any;
+  trial: any;
+  evaluation: any;
+  events: TraceEvent[];
+}

@@ -7,7 +7,9 @@ import type {
   ReplayResponse,
   CompareMetrics,
   CampaignResult,
-  RegressionDiffResponse
+  RegressionDiffResponse,
+  AttackLibraryResponse,
+  CustomAttackResult
 } from '../types/api';
 import { ApiError } from '../types/api';
 import type { Evaluation } from '../types/evaluation';
@@ -153,3 +155,18 @@ export const runRegressionDiff = (defense_a: string = 'none', defense_b: string 
 
 export const getRegressionDiff = (defense_a: string = 'none', defense_b: string = 'gateway') =>
   fetchApi<RegressionDiffResponse>(`/api/compare/regression-diff?defense_a=${encodeURIComponent(defense_a)}&defense_b=${encodeURIComponent(defense_b)}`);
+
+export const getAttackLibrary = () => fetchApi<AttackLibraryResponse>('/api/attacks/library');
+
+export const postCustomAttack = (body: {
+  text?: string;
+  payload?: string;
+  defense: string;
+  base_scenario_id?: string;
+  seed?: number;
+  title?: string;
+}) =>
+  fetchApi<CustomAttackResult>('/api/attacks/custom', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
