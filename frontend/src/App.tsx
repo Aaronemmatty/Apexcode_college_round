@@ -1,19 +1,37 @@
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Home, List, ArrowLeftRight, Menu } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getHealth, useAsync } from './api/client';
 import Overview from './pages/Overview';
 import Scenarios from './pages/Scenarios';
 import TrialViewer from './pages/TrialViewer';
+import Compare from './pages/Compare';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 
-function PlaceholderPage({ title }: { title: string }) {
+function NotFound() {
   return (
-    <div className="flex flex-col items-center justify-center h-full text-center space-y-4 pt-24">
-      <h1 className="text-3xl font-bold">{title}</h1>
-      <p className="text-muted-foreground">Coming in the next step</p>
-    </div>
+    <Card className="max-w-xl mx-auto bg-slate-900 border-slate-800 mt-12">
+      <CardContent className="pt-6 text-center space-y-4">
+        <h2 className="text-xl font-bold">Page not found</h2>
+        <p className="text-slate-400">The requested page does not exist.</p>
+        <Button asChild><Link to="/">Back to Home</Link></Button>
+      </CardContent>
+    </Card>
   );
+}
+
+function TitleManager() {
+  const location = useLocation();
+  useEffect(() => {
+    const p = location.pathname;
+    if (p === '/') document.title = 'AgentBreak | Overview';
+    else if (p.startsWith('/scenarios')) document.title = 'AgentBreak | Scenarios';
+    else if (p.startsWith('/trials')) document.title = 'AgentBreak | Trial Viewer';
+    else if (p.startsWith('/compare')) document.title = 'AgentBreak | Compare';
+    else document.title = 'AgentBreak | Not Found';
+  }, [location.pathname]);
+  return null;
 }
 
 function Sidebar() {
@@ -56,9 +74,10 @@ export default function App() {
 
   return (
     <Router>
+      <TitleManager />
       <div className="flex h-screen bg-slate-900 text-slate-100 overflow-hidden font-sans">
         {/* Desktop Sidebar */}
-        <div className="hidden md:block w-64 h-full">
+        <div className="hidden md:block w-64 h-full shrink-0">
           <Sidebar />
         </div>
 
@@ -66,12 +85,12 @@ export default function App() {
         <div className="md:hidden absolute top-0 left-0 right-0 z-50">
           <div className="flex items-center justify-between p-4 bg-slate-950 border-b border-slate-800">
             <h2 className="text-xl font-bold">AgentBreak</h2>
-            <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+            <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)} aria-label="Toggle mobile menu">
               <Menu className="w-6 h-6" />
             </Button>
           </div>
           {mobileMenuOpen && (
-            <div className="h-screen bg-slate-950" onClick={() => setMobileMenuOpen(false)}>
+            <div className="h-screen bg-slate-950 pt-16" onClick={() => setMobileMenuOpen(false)}>
               <Sidebar />
             </div>
           )}
@@ -84,7 +103,8 @@ export default function App() {
               <Route path="/" element={<Overview />} />
               <Route path="/scenarios" element={<Scenarios />} />
               <Route path="/trials/:trialId" element={<TrialViewer />} />
-              <Route path="/compare" element={<PlaceholderPage title="Compare" />} />
+              <Route path="/compare" element={<Compare />} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
             <div className="mt-12 pt-6 border-t border-slate-800 text-center text-slate-500 text-sm pb-8">
               Controlled mock-tool harness. Not an OS-level sandbox.

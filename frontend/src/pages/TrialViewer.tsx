@@ -335,14 +335,14 @@ export default function TrialViewer() {
                 <span className="text-slate-500">Trial ID:</span>
                 <span className="font-mono text-slate-300 bg-slate-950 px-2 py-1 rounded border border-slate-800 flex items-center gap-2">
                   {trialId}
-                  <button onClick={() => copyToClipboard(trialId!)} className="hover:text-blue-400"><Copy className="w-3 h-3" /></button>
+                  <button onClick={() => copyToClipboard(trialId!)} className="hover:text-blue-400" aria-label="Copy trial ID"><Copy className="w-3 h-3" /></button>
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-slate-500">Run ID:</span>
                 <span className="font-mono text-slate-300 bg-slate-950 px-2 py-1 rounded border border-slate-800 flex items-center gap-2">
                   {runContext?.run_id || 'Unknown'}
-                  <button onClick={() => copyToClipboard(runContext?.run_id || '')} className="hover:text-blue-400"><Copy className="w-3 h-3" /></button>
+                  <button onClick={() => copyToClipboard(runContext?.run_id || '')} className="hover:text-blue-400" aria-label="Copy run ID"><Copy className="w-3 h-3" /></button>
                 </span>
               </div>
             </div>

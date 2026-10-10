@@ -6,7 +6,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Link } from 'react-router-dom';
-import { AlertCircle, Info } from 'lucide-react';
+import { AlertCircle, Info, ArrowRight } from 'lucide-react';
+import { RunMatrixLauncher } from '../components/RunMatrixLauncher';
 
 export default function Overview() {
   const { data: scenarios, error: scenariosErr, loading: scenariosLoading, reload: reloadScenarios } = useAsync(listScenarios);
@@ -42,14 +43,10 @@ export default function Overview() {
 
   if (runs.length === 0) {
     return (
-      <Card className="bg-slate-900 border-slate-800">
-        <CardContent className="pt-6 flex flex-col items-center space-y-4 py-12">
-          <p className="text-slate-400">No runs yet</p>
-          <Button asChild>
-            <Link to="/scenarios">View Scenarios</Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col items-center justify-center h-full pt-12 space-y-6">
+        <h2 className="text-2xl font-bold">No runs yet</h2>
+        <RunMatrixLauncher onComplete={reloadRuns} />
+      </div>
     );
   }
 
@@ -147,6 +144,16 @@ export default function Overview() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="bg-slate-900 border-slate-800 hover:border-blue-500/50 transition-colors cursor-pointer group" onClick={() => window.location.href = '/compare'}>
+        <CardContent className="p-4 flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-slate-200 group-hover:text-blue-400 transition-colors">Compare Defenses</h3>
+            <p className="text-sm text-slate-500">View detailed scenario-by-scenario differences and blocking rules.</p>
+          </div>
+          <ArrowRight className="w-5 h-5 text-slate-600 group-hover:text-blue-400 transition-colors" />
+        </CardContent>
+      </Card>
 
       <div className="flex items-center gap-2 text-sm text-slate-400 mb-8">
         <Tooltip>
