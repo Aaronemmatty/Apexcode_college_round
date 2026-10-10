@@ -19,10 +19,10 @@ import {
   Terminal,
 } from 'lucide-react';
 import {
-  getAttackLibrary,
   postCustomAttack,
   replayTrial,
   useAsync,
+  getOllamaModels,
 } from '../api/client';
 import type {
   AttackLibraryItem,
@@ -50,8 +50,11 @@ export default function AttackLab() {
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('');
   const [defense, setDefense] = useState<string>('none');
   const [backend, setBackend] = useState<string>('scripted');
+  const [ollamaModel, setOllamaModel] = useState<string>('qwen2.5:7b');
   const [nRuns, setNRuns] = useState<number>(3);
   const [seed, setSeed] = useState<number>(42);
+  
+  const { data: ollamaModels } = useAsync(getOllamaModels);
 
   const [running, setRunning] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +119,7 @@ export default function AttackLab() {
         seed,
         backend,
         n_runs: backend === 'ollama' ? nRuns : 1,
+        backend_config: backend === 'ollama' ? { model: ollamaModel } : undefined,
       });
       setResult(res);
       const summaryText = res.summary ? ` [${res.summary}]` : '';
@@ -323,9 +327,29 @@ export default function AttackLab() {
                 className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               >
                 <option value="scripted">Scripted Agent (default)</option>
-                <option value="ollama">Ollama (qwen2.5:7b)</option>
+                <option value="ollama">Ollama LLM</option>
               </select>
             </div>
+            {backend === 'ollama' && (
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                  Ollama Model
+                </label>
+                <select
+                  value={ollamaModel}
+                  onChange={(e) => setOllamaModel(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                >
+                  {(!ollamaModels || ollamaModels.length === 0) ? (
+                     <option value="qwen2.5:7b">qwen2.5:7b (default)</option>
+                  ) : (
+                    ollamaModels.map((m: string) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))
+                  )}
+                </select>
+              </div>
+            )}
             {backend === 'ollama' ? (
               <div>
                 <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
@@ -358,7 +382,7 @@ export default function AttackLab() {
                 Model Status
               </label>
               <div className="text-xs font-mono text-slate-400 py-2">
-                {backend === 'ollama' ? 'qwen2.5:7b @ :11434' : 'Deterministic'}
+                {backend === 'ollama' ? `${ollamaModel} @ :11434` : 'Deterministic'}
               </div>
             </div>
             <div className="flex items-end">
