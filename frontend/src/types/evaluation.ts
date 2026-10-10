@@ -27,4 +27,5 @@ export interface Evaluation {
   task_completed: boolean
   false_blocks: number
   notes: string[]
+  fix_suggestions?: string[]
 }

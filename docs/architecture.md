@@ -48,3 +48,27 @@ All tools and assets execute completely in-process:
 Every trial instantiates a fresh `ToolEnvironment` and `TraceRecorder`:
 - No shared mutable state between trials.
 - Traces and trial metadata are recorded and stored transactionally in SQLite (`runs`, `trials`, `events`).
+---
+
+## 5. Visual Provenance Attack Graph
+
+The trace viewer renders an interactive left-to-right flow diagram tracing execution from:
+`[1. Entry Vector] -> [2. Agent Core] -> [3. Tool Invocation] -> [4. Defense Gate] -> [5. Security Invariant]`
+Nodes are color-coded by provenance (trusted vs untrusted sources). Any invariant-violating step is flagged in bold red with corresponding deterministic remediation advice.
+
+---
+
+## 6. Tool & Permission Audit (`/audit`)
+
+Static capability vs task scope inspection:
+- Compares what each sandbox tool can do against what task security policy permits.
+- Assesses deterministic risk ratings (CRITICAL, HIGH, MEDIUM).
+- Dynamically audits which attack scenarios abuse each specific tool boundary.
+
+---
+
+## 7. Audit Report Exports
+
+Generates downloadable Markdown audit summaries for:
+- Discovery campaigns (`/api/campaigns/{id}/report?format=md`)
+- Multi-defense benchmark comparisons (`/api/compare/report?format=md`)

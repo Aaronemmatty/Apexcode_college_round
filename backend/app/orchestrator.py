@@ -26,7 +26,7 @@ from app.events import TraceEvent
 logger = logging.getLogger(__name__)
 
 SUPPORTED_DEFENSES = {"none", "hardening", "prompt_hardening", "gateway", "both"}
-SUPPORTED_BACKENDS = {"scripted", "ollama"}
+SUPPORTED_BACKENDS = {"scripted", "ollama", "http_agent", "external", "http"}
 
 
 class SimulatedTrial(BaseModel):

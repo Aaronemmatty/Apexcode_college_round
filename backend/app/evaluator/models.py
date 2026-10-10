@@ -37,3 +37,4 @@ class Evaluation(BaseModel):
     task_completed: bool = False
     false_blocks: int = 0
     notes: list[str] = Field(default_factory=list)
+    fix_suggestions: list[str] = Field(default_factory=list)

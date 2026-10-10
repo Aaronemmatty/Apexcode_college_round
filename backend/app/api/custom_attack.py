@@ -15,6 +15,7 @@ from app.db.models import EventRow, GeneratedTaskRow
 from app.db.session import get_db
 from app.events import Decision, EventType, Source, TraceEvent
 from app.evaluator.severity import ATTACK_GROUPS, derive_severity, get_attack_group
+from app.evaluator.remediation import get_fix_suggestions
 from app.orchestrator import execute_run
 from app.sandbox.data import DOCUMENTS
 
@@ -63,6 +64,7 @@ class CustomAttackResponse(BaseModel):
     summary: Optional[str] = None
     fallback_notice: Optional[str] = None
     trials: list[dict[str, Any]] = Field(default_factory=list)
+    fix_suggestions: list[str] = Field(default_factory=list)
     run: dict[str, Any]
     trial: dict[str, Any]
     evaluation: dict[str, Any]
@@ -322,6 +324,7 @@ def execute_custom_attack(
         "started_at": trial_row.started_at.isoformat() if trial_row.started_at else None,
         "finished_at": trial_row.finished_at.isoformat() if trial_row.finished_at else None,
     }
+    fix_suggestions = get_fix_suggestions(violated)
     eval_dict = {
         "trial_id": trial_row.trial_id,
         "verdict": verdict,
@@ -330,6 +333,7 @@ def execute_custom_attack(
         "task_completed": eval_data.get("task_completed", False),
         "false_blocks": eval_data.get("false_blocks", 0),
         "checks": eval_data.get("checks", []),
+        "fix_suggestions": fix_suggestions,
     }
 
     trials_summary = []
@@ -365,6 +369,7 @@ def execute_custom_attack(
         summary=summary_str,
         fallback_notice=getattr(run_row, "fallback_notice", None),
         trials=trials_summary,
+        fix_suggestions=fix_suggestions,
         run=run_dict,
         trial=trial_dict,
         evaluation=eval_dict,

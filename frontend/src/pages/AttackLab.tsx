@@ -17,8 +17,11 @@ import {
   Play,
   RotateCcw,
   Terminal,
+  Sparkles,
+  Plug,
 } from 'lucide-react';
 import {
+  getAttackLibrary,
   postCustomAttack,
   replayTrial,
   useAsync,
@@ -55,6 +58,7 @@ export default function AttackLab() {
   const [ollamaModel, setOllamaModel] = useState<string>('qwen2.5:7b');
   const [nRuns, setNRuns] = useState<number>(10);
   const [progress, setProgress] = useState<{current: number, total: number} | null>(null);
+  const [agentUrl, setAgentUrl] = useState<string>('http://localhost:9000/chat');
   const [seed, setSeed] = useState<number>(42);
 
   const [advancedPerms, setAdvancedPerms] = useState<boolean>(false);
@@ -81,7 +85,7 @@ export default function AttackLab() {
   let selectedItem: AttackLibraryItem | undefined;
   if (library && selectedScenarioId) {
     for (const groupItems of Object.values(library)) {
-      const match = groupItems.find((it) => it.scenario_id === selectedScenarioId);
+      const match = (groupItems as AttackLibraryItem[]).find((it: AttackLibraryItem) => it.scenario_id === selectedScenarioId);
       if (match) {
         selectedItem = match;
         break;
@@ -97,7 +101,7 @@ export default function AttackLab() {
     }
 
     for (const groupItems of Object.values(library)) {
-      const item = groupItems.find((it) => it.scenario_id === scenarioId);
+      const item = (groupItems as AttackLibraryItem[]).find((it: AttackLibraryItem) => it.scenario_id === scenarioId);
       if (item) {
         setText(item.payload_text);
         break;
@@ -146,7 +150,7 @@ export default function AttackLab() {
         seed,
         backend,
         n_runs: backend === 'ollama' ? nRuns : 1,
-        backend_config: backend === 'ollama' ? { model: ollamaModel } : undefined,
+        backend_config: backend === 'ollama' ? { model: ollamaModel } : backend === 'http_agent' ? { url: agentUrl } : undefined,
         permitted_tools: advancedPerms ? permTools.split(',').map(s => s.trim()).filter(Boolean) : ['read_document'],
         permitted_recipients: advancedPerms ? permRecipients.split(',').map(s => s.trim()).filter(Boolean) : [],
         max_customer_records: advancedPerms ? maxRecords : 1,
@@ -260,7 +264,7 @@ export default function AttackLab() {
               <option value="">-- Choose an attack scenario from Library --</option>
               {Object.entries(library || {}).map(([groupName, items]) => (
                 <optgroup key={groupName} label={groupName} className="bg-slate-900 text-slate-300 font-sans font-bold">
-                  {items.map((it) => (
+                  {(items as AttackLibraryItem[]).map((it: AttackLibraryItem) => (
                     <option key={it.scenario_id} value={it.scenario_id} className="bg-slate-950 text-slate-200 font-mono font-normal">
                       [{it.severity}] {it.title}
                     </option>
@@ -349,7 +353,9 @@ export default function AttackLab() {
                 className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               >
                 <option value="none">No Defense (none)</option>
+                <option value="prompt_hardening">Prompt Hardening (prompt_hardening)</option>
                 <option value="gateway">Security Gateway (gateway)</option>
+                <option value="both">Both Defenses (both)</option>
               </select>
               <p className="text-[10px] text-slate-500 mt-1">None = no protection. Gateway = rule-based guard.</p>
             </div>
@@ -360,14 +366,45 @@ export default function AttackLab() {
               <select
                 value={backend}
                 onChange={(e) => setBackend(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-medium"
               >
-                <option value="scripted">Scripted Agent (default)</option>
-                <option value="ollama">Ollama LLM</option>
+                <option value="scripted">Scripted Agent (default, simulated)</option>
+                <option value="ollama">Ollama LLM (local model)</option>
+                <option value="http_agent">External HTTP Agent (Plug-in Connector)</option>
               </select>
               <p className="text-[10px] text-slate-500 mt-1">Scripted always follows [[ACTION ...]] lines. Ollama is a real model and may ignore the attack.</p>
             </div>
-            
+            {backend === 'http_agent' && (
+              <div className="sm:col-span-2 p-2.5 bg-indigo-950/40 border border-indigo-800/80 rounded-md">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-semibold text-indigo-300 uppercase tracking-wider flex items-center gap-1">
+                    <Plug className="w-3.5 h-3.5" /> Plug-in Agent URL
+                  </label>
+                  <span className="text-[10px] text-indigo-400 font-mono">examples/external_agent.py</span>
+                </div>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={agentUrl}
+                    onChange={(e) => setAgentUrl(e.target.value)}
+                    placeholder="http://localhost:9000/chat"
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAgentUrl('http://localhost:9000/chat')}
+                    className="h-7 text-[10px] border-indigo-800 text-indigo-300 hover:bg-indigo-950 px-2"
+                  >
+                    Reset
+                  </Button>
+                </div>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Sends <code>{'{task, tool_catalog}'}</code> via HTTP and runs actions against synthetic sandbox.
+                </p>
+              </div>
+            )}
             {backend === 'ollama' ? (
               <div className="flex flex-col gap-2">
                 <div>
@@ -662,6 +699,30 @@ export default function AttackLab() {
                         </table>
                       </div>
                     )}
+                    {/* Fix Suggestions from Lookup Table */}
+                    {result.fix_suggestions && result.fix_suggestions.length > 0 && (
+                      <div className="p-3 bg-purple-950/40 border border-purple-800/60 rounded-md text-xs">
+                        <div className="flex items-center gap-1.5 font-semibold text-purple-300 mb-1">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Recommended Remediation (Lookup Policy Fix)
+                        </div>
+                        <ul className="list-disc list-inside space-y-1 text-slate-300">
+                          {result.fix_suggestions.map((fix: string, idx: number) => (
+                            <li key={idx}>{fix}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {/* Event Timeline */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                        Step-by-Step Trace Timeline ({result.events?.length || 0} events)
+                      </h4>
+                      <EventTimeline
+                        events={result.events || []}
+                        evidenceEventIds={new Set(result.violated_invariants || [])}
+                      />
+                    </div>
                   </div>
                 );
               })()}

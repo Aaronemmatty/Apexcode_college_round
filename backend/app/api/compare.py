@@ -73,6 +73,7 @@ def run_all_replays(db: Session = Depends(get_db)):
         "inconsistent_trial_ids": inconsistent_ids
     }
 
+@router.get("/compare/report")
 @router.get("/report")
 def get_report(format: str = Query("json"), db: Session = Depends(get_db)):
     if format not in ["json", "md"]:
@@ -98,26 +99,39 @@ def get_report(format: str = Query("json"), db: Session = Depends(get_db)):
     if metrics.get("attack_violated_hardening", {}).get("m", 0) > 0:
         md += f"- **Residual with Hardening:** {format_pct(metrics['attack_violated_hardening']['n'], metrics['attack_violated_hardening']['m'])}\n"
     md += f"- **Residual with Gateway:** {format_pct(metrics['attack_violated_gateway']['n'], metrics['attack_violated_gateway']['m'])}\n"
+    if metrics.get("attack_violated_both", {}).get("m", 0) > 0:
+        md += f"- **Residual with Both:** {format_pct(metrics['attack_violated_both']['n'], metrics['attack_violated_both']['m'])}\n"
     md += f"- **Benign Held (Gateway):** {format_pct(metrics['benign_held_gateway']['n'], metrics['benign_held_gateway']['m'])}\n"
     md += f"- **False Block Rate (Gateway):** {format_pct(metrics['false_block_rate']['n'], metrics['false_block_rate']['m'])}\n\n"
     
+    md += "## 4-Defense Comparison Overview\n"
+    md += "| Metric | No Defense | Prompt Hardening | Gateway | Both |\n"
+    md += "|---|---|---|---|---|\n"
+    m_none = format_pct(metrics['attack_violated_none']['n'], metrics['attack_violated_none']['m'])
+    m_hd = format_pct(metrics.get('attack_violated_hardening', {}).get('n', 0), metrics.get('attack_violated_hardening', {}).get('m', 0))
+    m_gw = format_pct(metrics['attack_violated_gateway']['n'], metrics['attack_violated_gateway']['m'])
+    m_both = format_pct(metrics.get('attack_violated_both', {}).get('n', 0), metrics.get('attack_violated_both', {}).get('m', 0))
+    md += f"| **Attack Success Rate** | {m_none} | {m_hd} | {m_gw} | {m_both} |\n\n"
+
     md += "## By Category\n"
-    md += "| Category | No Defense (Violated) | Hardening (Violated) | Gateway (Violated) | Total |\n"
-    md += "|----------|-----------------------|----------------------|--------------------|-------|\n"
+    md += "| Category | No Defense (Violated) | Hardening (Violated) | Gateway (Violated) | Both (Violated) | Total |\n"
+    md += "|----------|-----------------------|----------------------|--------------------|-----------------|-------|\n"
     for cat, stat in metrics["by_category"].items():
         v_hd = stat.get("violated_hardening", 0)
-        md += f"| {cat} | {stat['violated_none']} | {v_hd} | {stat['violated_gateway']} | {stat['total']} |\n"
+        v_both = stat.get("violated_both", 0)
+        md += f"| {cat} | {stat['violated_none']} | {v_hd} | {stat['violated_gateway']} | {v_both} | {stat['total']} |\n"
     md += "\n"
     
     md += "## Per Scenario\n"
-    md += "| Task ID | Kind | No Def Verdict | Hardening Verdict | GW Verdict | Changed | Blocked Rules (GW) |\n"
-    md += "|---------|------|----------------|-------------------|------------|---------|--------------------|\n"
+    md += "| Task ID | Kind | No Def Verdict | Hardening Verdict | GW Verdict | Both Verdict | Changed | Blocked Rules (GW) |\n"
+    md += "|---------|------|----------------|-------------------|------------|--------------|---------|--------------------|\n"
     for row in metrics["per_scenario"]:
         none_v = row['none']['verdict'] if row['none'] else "n/a"
         hd_v = row.get('hardening', {}).get('verdict', 'n/a') if row.get('hardening') else "n/a"
         gw_v = row['gateway']['verdict'] if row['gateway'] else "n/a"
+        both_v = row.get('both', {}).get('verdict', 'n/a') if row.get('both') else "n/a"
         rules = ", ".join(row['gateway']['blocked_rule_ids']) if row['gateway'] else ""
-        md += f"| {row['task_id']} | {row['kind']} | {none_v} | {hd_v} | {gw_v} | {row['change']} | {rules} |\n"
+        md += f"| {row['task_id']} | {row['kind']} | {none_v} | {hd_v} | {gw_v} | {both_v} | {row['change']} | {rules} |\n"
     md += "\n"
     
     md += "## Block Counts by Rule\n"
@@ -146,5 +160,9 @@ def get_report(format: str = Query("json"), db: Session = Depends(get_db)):
     else:
         md += "- **Still-Violated Scenarios (Gateway):** None\n"
     md += "- **Residual Bypass Note:** The excessive_access_broad_query scenario bypasses syntactic pattern rules (1 documented residual miss).\n"
+    md += "- **Scripted Agent:** The baseline agent is deliberately vulnerable and parses canonical `[[ACTION ...]]` directives.\n"
+    md += "- **Simulated Hardening:** Prompt hardening for the scripted agent is simulated deterministically.\n"
+    md += "- **Bounded Search:** Search space is bounded over explicit mutation operators.\n"
+    md += "- **Synthetic Sandbox:** In-process mock tools with fake customer and document records.\n"
     
     return Response(content=md, media_type="text/markdown", headers={"Content-Disposition": "attachment; filename=agentbreak-report.md"})

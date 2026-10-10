@@ -120,7 +120,7 @@ export function useAsync<T>(asyncFn: () => Promise<T>, dependencies: any[] = [])
   return { data, error, loading, reload: execute };
 }
 
-export const startCampaign = (body: { budget: number; seed: number; defense: string; seed_scenarios?: string[]; backend?: string; backend_config?: any }) =>
+export const startCampaign = (body: { budget: number; seed: number; defense: string; seed_scenarios?: string[]; backend?: string; backend_config?: Record<string, any> }) =>
   fetchApi<CampaignResult>('/api/campaigns', {
     method: 'POST',
     body: JSON.stringify(body),
@@ -201,3 +201,22 @@ export const rerunCampaignBypasses = (campaignId: string, defense: string = 'gat
   }>(`/api/campaigns/${encodeURIComponent(campaignId)}/rerun-bypasses?defense=${encodeURIComponent(defense)}`, {
     method: 'POST',
   });
+
+
+export const getPermissionAudit = () =>
+  fetchApi<import('../types/api').PermissionAuditResponse>('/api/audit/permissions');
+
+export const downloadCampaignReport = async (campaignId: string): Promise<void> => {
+  const url = `${getBaseUrl()}/api/campaigns/${encodeURIComponent(campaignId)}/report?format=md`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new ApiError('CAMPAIGN_REPORT_DOWNLOAD_FAILED', `HTTP ${response.status}`, response.status);
+  }
+  const blob = await response.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `agentbreak-campaign-${campaignId}-report.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};

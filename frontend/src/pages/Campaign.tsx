@@ -5,9 +5,11 @@ import {
   listCampaigns,
   getCampaign,
   createRun,
+  rerunCampaignBypasses,
   listScenarios,
   useAsync,
   getOllamaModels,
+  downloadCampaignReport,
 } from '../api/client';
 import type { CampaignResult, CampaignAttempt } from '../types/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -25,6 +27,8 @@ import {
   ChevronDown,
   ChevronUp,
   History,
+  Download,
+  Plug,
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
@@ -60,6 +64,7 @@ export default function Campaign() {
   const [defense, setDefense] = useState<string>('gateway');
   const [backend, setBackend] = useState<string>('scripted');
   const [ollamaModel, setOllamaModel] = useState<string>('qwen2.5:7b');
+  const [agentUrl, setAgentUrl] = useState<string>('http://localhost:9000/chat');
   const [selectedSeeds, setSelectedSeeds] = useState<string[]>(GATEWAY_BLOCKED_ATTACKS);
   const [running, setRunning] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +124,7 @@ export default function Campaign() {
         defense,
         seed_scenarios: selectedSeeds,
         backend,
-        backend_config: backend === 'ollama' ? { model: ollamaModel } : undefined,
+        backend_config: backend === 'ollama' ? { model: ollamaModel } : backend === 'http_agent' ? { url: agentUrl } : undefined,
       });
       setCurrentCampaign(result);
       reloadHistory();
@@ -140,6 +145,53 @@ export default function Campaign() {
       showToast(`Campaign failed: ${msg}`, 'error');
     } finally {
       setRunning(false);
+    }
+  };
+
+  const [batchDefense, setBatchDefense] = useState<string>('gateway');
+  const [batchRerunning, setBatchRerunning] = useState<boolean>(false);
+    const [exportingReport, setExportingReport] = useState(false);
+
+  const handleExportReport = async () => {
+    if (!currentCampaign) return;
+    setExportingReport(true);
+    try {
+      await downloadCampaignReport(currentCampaign.campaign_id);
+      showToast(`Exported campaign report (${currentCampaign.campaign_id}.md)`, 'success');
+    } catch (err: any) {
+      showToast(`Failed to export report: ${err.message || err}`, 'error');
+    } finally {
+      setExportingReport(false);
+    }
+  };
+  const [batchSummary, setBatchSummary] = useState<{ now_held: number; still_violated: number } | null>(null);
+
+  const handleBatchRerun = async () => {
+    if (!currentCampaign?.campaign_id) return;
+    setBatchRerunning(true);
+    setBatchSummary(null);
+    try {
+      const res = await rerunCampaignBypasses(currentCampaign.campaign_id, batchDefense);
+      setBatchSummary({
+        now_held: (res as any).now_held_count ?? res.fixed_count,
+        still_violated: res.still_violated_count,
+      });
+      for (const item of (res as any).results || []) {
+        setRerunStates((prev) => ({
+          ...prev,
+          [item.task_id]: {
+            loading: false,
+            verdict: item.verdict,
+            trial_id: item.trial_id,
+            fix_suggestions: item.fix_suggestions,
+          },
+        }));
+      }
+      showToast(`Re-test complete: ${res.fixed_count} now held, ${res.still_violated_count} still violated`, 'success');
+    } catch (e: any) {
+      showToast(`Batch re-test failed: ${e?.message || e}`, 'error');
+    } finally {
+      setBatchRerunning(false);
     }
   };
 
@@ -235,9 +287,10 @@ export default function Campaign() {
                 onChange={(e) => setDefense(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium"
               >
-                <option value="gateway">Security Gateway (Defense Validation)</option>
-                <option value="none">None (Undefended Baseline)</option>
-                <option value="prompt_hardening">Prompt Hardening</option>
+                <option value="gateway">Security Gateway (gateway)</option>
+                <option value="none">No Defense (none)</option>
+                <option value="prompt_hardening">Prompt Hardening (prompt_hardening)</option>
+                <option value="both">Both Defenses (both)</option>
               </select>
             </div>
 
@@ -250,12 +303,44 @@ export default function Campaign() {
                 onChange={(e) => setBackend(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded px-3.5 py-2.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium"
               >
-                <option value="scripted">Scripted Agent (default)</option>
-                <option value="ollama">Ollama LLM</option>
+                <option value="scripted">Built-in Scripted Agent (default, simulated)</option>
+                <option value="ollama">Built-in Ollama LLM (local model)</option>
+                <option value="http_agent">External HTTP Agent (Plug-in Connector)</option>
               </select>
             </div>
 
-            {backend === 'ollama' && (
+            {backend === 'http_agent' && (
+              <div className="md:col-span-2 p-3 bg-indigo-950/40 border border-indigo-800/80 rounded-md">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Plug className="w-3.5 h-3.5" /> Plug-in Agent Endpoint URL
+                  </label>
+                  <span className="text-[11px] text-indigo-400 font-mono">examples/external_agent.py</span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={agentUrl}
+                    onChange={(e) => setAgentUrl(e.target.value)}
+                    placeholder="http://localhost:9000/chat"
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAgentUrl('http://localhost:9000/chat')}
+                    className="text-xs border-indigo-800 text-indigo-300 hover:bg-indigo-950"
+                  >
+                    Reset URL
+                  </Button>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  AgentBreak will evaluate your external agent by sending mutation attempts and checking sandbox tool calls.
+                </p>
+              </div>
+            )}
+              {backend === 'ollama' && (
               <div>
                 <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-1.5">
                   Ollama Model
@@ -461,12 +546,28 @@ export default function Campaign() {
         <div className="space-y-6">
           {/* Summary Cards */}
           <div>
-            <h2 className="text-lg font-bold text-slate-200 mb-3 flex items-center gap-2">
-              <span>Campaign Results</span>
-              <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-800 text-purple-300 border border-slate-700">
-                {currentCampaign.campaign_id}
-              </span>
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
+                  <span>Campaign Results</span>
+                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-800 text-purple-300 border border-slate-700">
+                    {currentCampaign.campaign_id}
+                  </span>
+                </h2>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleExportReport}
+                  disabled={exportingReport}
+                  className="border-slate-700 hover:bg-slate-800 text-slate-300 text-xs font-mono"
+                >
+                  {exportingReport ? (
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5 mr-1.5" />
+                  )}
+                  Export Report (.md)
+                </Button>
+              </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               <Card className="bg-slate-900 border-slate-800">
                 <CardContent className="pt-4 pb-4">
@@ -548,6 +649,49 @@ export default function Campaign() {
                 <CardDescription className="text-red-300/80 text-xs">
                   These mutated attacks evaded the {currentCampaign.defense} defense and successfully violated system invariants.
                 </CardDescription>
+                <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3 border-t border-red-900/40">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-300 font-medium">Re-test against:</span>
+                    <select
+                      value={batchDefense}
+                      onChange={(e) => setBatchDefense(e.target.value)}
+                      className="bg-slate-950 border border-slate-700 rounded text-xs px-2.5 py-1 text-white cursor-pointer font-medium"
+                    >
+                      <option value="gateway">Security Gateway</option>
+                      <option value="both">Both (Hardening + Gateway)</option>
+                      <option value="prompt_hardening">Prompt Hardening</option>
+                      <option value="none">No Defense</option>
+                    </select>
+                    <Button
+                      size="sm"
+                      disabled={batchRerunning}
+                      onClick={handleBatchRerun}
+                      className="bg-purple-700 hover:bg-purple-600 text-white text-xs h-7 px-3 font-semibold shadow-md"
+                    >
+                      {batchRerunning ? (
+                        <>
+                          <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                          Re-testing Bypasses...
+                        </>
+                      ) : (
+                        <>
+                          <RotateCw className="w-3 h-3 mr-1.5" />
+                          Re-test against defense
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  {batchSummary && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <Badge className="bg-emerald-950 text-emerald-400 border-emerald-800 font-mono">
+                        {batchSummary.now_held} NOW HELD
+                      </Badge>
+                      <Badge className="bg-red-950 text-red-400 border-red-800 font-mono">
+                        {batchSummary.still_violated} STILL VIOLATED
+                      </Badge>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 {currentCampaign.bypasses.map((bp) => {
@@ -576,6 +720,16 @@ export default function Campaign() {
                           <span>&bull;</span>
                           <span>Task ID: {taskId}</span>
                         </div>
+
+                        {/* Fix Suggestions */}
+                        {((rerunState as any)?.fix_suggestions || (bp as any).fix_suggestions || []).length > 0 && (
+                          <div className="mt-2.5 p-2 bg-purple-950/40 border border-purple-800/60 rounded text-xs">
+                            <span className="font-semibold text-purple-300">Recommended Fix: </span>
+                            <span className="text-slate-200">
+                              {((rerunState as any)?.fix_suggestions || (bp as any).fix_suggestions || [])[0]}
+                            </span>
+                          </div>
+                        )}
 
                         {/* Rerun inline result */}
                         {rerunState?.verdict && (
