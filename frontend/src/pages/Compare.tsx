@@ -14,6 +14,8 @@ export default function Compare() {
   const [filter, setFilter] = useState<'all' | 'attack' | 'benign' | 'diff'>('all');
   const [replaying, setReplaying] = useState(false);
   const [replayResult, setReplayResult] = useState<string | null>(null);
+  const [replayError, setReplayError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   if (error) {
     return (
@@ -51,21 +53,24 @@ export default function Compare() {
   const handleReplayAll = async () => {
     setReplaying(true);
     setReplayResult(null);
+    setReplayError(null);
     try {
       const res = await runReplayAll();
       setReplayResult(`${res.consistent}/${res.replayed} replays consistent`);
       reload();
-    } catch (e) {
-      setReplayResult('Failed to run replays');
+    } catch (e: any) {
+      setReplayError(e?.message || 'Failed to run replays');
+    } finally {
+      setReplaying(false);
     }
-    setReplaying(false);
   };
 
   const handleExport = async (format: 'json' | 'md') => {
+    setExportError(null);
     try {
       await downloadReport(format);
-    } catch (e) {
-      alert(`Export failed: ${e}`);
+    } catch (e: any) {
+      setExportError(`Export failed: ${e?.message || e}`);
     }
   };
 
@@ -78,13 +83,13 @@ export default function Compare() {
   });
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center">
+    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 min-w-0">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-4xl font-bold text-white tracking-tight">Compare</h1>
-          <p className="text-slate-400 mt-2">Evaluate defense efficacy against attack scenarios.</p>
+          <h1 className="text-2xl sm:text-4xl font-bold text-white tracking-tight">Compare</h1>
+          <p className="text-slate-400 mt-2 text-sm sm:text-base">Evaluate defense efficacy against attack scenarios.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button onClick={() => handleExport('json')} variant="outline" className="border-slate-700 hover:bg-slate-800">
             <Download className="w-4 h-4 mr-2" /> JSON
           </Button>
@@ -97,17 +102,30 @@ export default function Compare() {
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 mb-4">
+      {exportError && (
+        <div role="alert" className="text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-md p-3 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+          <span>{exportError}</span>
+        </div>
+      )}
+
+      <div className="flex flex-col sm:flex-row flex-wrap gap-4 items-start sm:items-center mb-4">
          <RunMatrixLauncher onComplete={reload} />
-         <Button onClick={handleReplayAll} disabled={replaying} variant="secondary" className="flex-1 md:flex-none">
+         <Button onClick={handleReplayAll} disabled={replaying} variant="secondary" className="w-full sm:w-auto">
            {replaying ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
            Add replay check
          </Button>
          {replayResult && <span className="text-sm text-slate-400 self-center">{replayResult}</span>}
+         {replayError && (
+           <div role="alert" className="text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-md px-3 py-1.5 flex items-center gap-2">
+             <AlertCircle className="w-4 h-4 shrink-0" />
+             <span>{replayError}</span>
+           </div>
+         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-slate-900 border-slate-800">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">Attacks violated, no defense</CardTitle>
           </CardHeader>
@@ -117,22 +135,27 @@ export default function Compare() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">Residual with gateway</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-400">
+            <div className="text-2xl font-bold text-amber-400">
               {getPercent(data.attack_violated_gateway.n, data.attack_violated_gateway.m)}
             </div>
-            <CardDescription className="mt-1">
-               {data.attack_prevented} prevented
-            </CardDescription>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Benign held, with gateway</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-400">Attacks prevented</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-400">{data.attack_prevented}</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-slate-900 border-slate-800 min-w-0">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-400">Benign trials held</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-400">
@@ -140,50 +163,59 @@ export default function Compare() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-slate-900 border-slate-800">
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">False block rate (Benign)</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-400">Benign tasks completed (gateway)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-400">
+            <div className="text-2xl font-bold text-blue-400">
+              {data.benign_task_completed_gateway.n} / {data.benign_task_completed_gateway.m}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-slate-900 border-slate-800 min-w-0">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-400">False block rate (benign)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-400">
               {getPercent(data.false_block_rate.n, data.false_block_rate.m)}
             </div>
+            <p className="text-xs text-slate-500 mt-1">{data.false_blocks_total} total false blocks</p>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="bg-slate-900 border-slate-800 lg:col-span-2">
+        <Card className="lg:col-span-2 bg-slate-900 border-slate-800 min-w-0">
           <CardHeader>
-            <CardTitle>Violations by Category (Attacks)</CardTitle>
+            <CardTitle>Violation Rates by Attack Category</CardTitle>
+            <CardDescription>Number of violated invariant trials per category</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-72 w-full">
-              {chartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                    <XAxis dataKey="category" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
-                    <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8' }} allowDecimals={false} />
-                    <RechartsTooltip 
-                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }}
-                      itemStyle={{ color: '#f8fafc' }}
-                    />
-                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                    <Bar dataKey="No defense" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Gateway" fill="#f97316" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex h-full items-center justify-center text-slate-500">
-                  No attack data available.
-                </div>
-              )}
+            <div className="h-72 w-full min-w-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis dataKey="category" stroke="#94a3b8" />
+                  <YAxis stroke="#94a3b8" allowDecimals={false} />
+                  <RechartsTooltip 
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }}
+                    itemStyle={{ color: '#e2e8f0' }}
+                  />
+                  <Legend />
+                  <Bar dataKey="No defense" fill="#f87171" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Gateway" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader>
             <CardTitle>Replay consistency</CardTitle>
           </CardHeader>
@@ -206,7 +238,7 @@ export default function Compare() {
         </Card>
       </div>
 
-      <Card className="bg-slate-900 border-slate-800">
+      <Card className="bg-slate-900 border-slate-800 min-w-0">
         <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <CardTitle>Per-Scenario Comparison</CardTitle>
@@ -218,7 +250,7 @@ export default function Compare() {
               Excluded trials: {data.excluded_failed} failed, {data.excluded_inconclusive} inconclusive.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant={filter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('all')}>All</Button>
             <Button variant={filter === 'attack' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('attack')}>Attacks</Button>
             <Button variant={filter === 'benign' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('benign')}>Benign</Button>
@@ -295,33 +327,35 @@ export default function Compare() {
         </CardContent>
       </Card>
 
-      <Card className="bg-slate-900 border-slate-800">
+      <Card className="bg-slate-900 border-slate-800 min-w-0">
          <CardHeader>
             <CardTitle>Block counts by rule</CardTitle>
          </CardHeader>
          <CardContent>
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs text-slate-400 uppercase bg-slate-950">
-                <tr>
-                  <th className="px-4 py-3">Rule ID</th>
-                  <th className="px-4 py-3">Blocked Events</th>
-                  <th className="px-4 py-3">Violations Listed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.keys(data.block_counts_by_rule).length === 0 && Object.keys(data.violations_listed).length === 0 ? (
-                  <tr><td colSpan={3} className="px-4 py-4 text-center text-slate-500">No blocked rules.</td></tr>
-                ) : (
-                  Array.from(new Set([...Object.keys(data.block_counts_by_rule), ...Object.keys(data.violations_listed)])).sort().map(rid => (
-                    <tr key={rid} className="border-b border-slate-800">
-                      <td className="px-4 py-2 font-mono text-slate-300">{rid}</td>
-                      <td className="px-4 py-2">{data.block_counts_by_rule[rid] || 0}</td>
-                      <td className="px-4 py-2">{data.violations_listed[rid] || 0}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left">
+                <thead className="text-xs text-slate-400 uppercase bg-slate-950">
+                  <tr>
+                    <th className="px-4 py-3">Rule ID</th>
+                    <th className="px-4 py-3">Blocked Events</th>
+                    <th className="px-4 py-3">Violations Listed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.keys(data.block_counts_by_rule).length === 0 && Object.keys(data.violations_listed).length === 0 ? (
+                    <tr><td colSpan={3} className="px-4 py-4 text-center text-slate-500">No blocked rules.</td></tr>
+                  ) : (
+                    Array.from(new Set([...Object.keys(data.block_counts_by_rule), ...Object.keys(data.violations_listed)])).sort().map(rid => (
+                      <tr key={rid} className="border-b border-slate-800">
+                        <td className="px-4 py-2 font-mono text-slate-300">{rid}</td>
+                        <td className="px-4 py-2">{data.block_counts_by_rule[rid] || 0}</td>
+                        <td className="px-4 py-2">{data.violations_listed[rid] || 0}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
          </CardContent>
       </Card>
     </div>

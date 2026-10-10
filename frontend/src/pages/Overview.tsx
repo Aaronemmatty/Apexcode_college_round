@@ -1,12 +1,12 @@
 import { useAsync, listScenarios, listRuns, getCompare } from '../api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Button } from '@/components/ui/button';
+import { AlertCircle, ArrowRight, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, Info, ArrowRight } from 'lucide-react';
 import { RunMatrixLauncher } from '../components/RunMatrixLauncher';
 
 export default function Overview() {
@@ -60,11 +60,11 @@ export default function Overview() {
   const recentRuns = runs.slice(0, 10);
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold tracking-tight mb-8">Dashboard Overview</h1>
+    <div className="space-y-6 min-w-0">
+      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-6 sm:mb-8">Dashboard Overview</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-slate-900 border-slate-800">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">Total Executions</CardTitle>
           </CardHeader>
@@ -74,7 +74,7 @@ export default function Overview() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">Attack Success (No Defense)</CardTitle>
           </CardHeader>
@@ -83,7 +83,7 @@ export default function Overview() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-400">Residual with gateway</CardTitle>
           </CardHeader>
@@ -92,7 +92,7 @@ export default function Overview() {
           </CardContent>
         </Card>
 
-        <Card className="bg-slate-900 border-slate-800">
+        <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm font-medium text-slate-400">Benign trials held</CardTitle>
             <Tooltip>
@@ -110,7 +110,7 @@ export default function Overview() {
         </Card>
       </div>
 
-      <Card className="bg-slate-900 border-slate-800 hover:border-blue-500/50 transition-colors cursor-pointer group" onClick={() => window.location.href = '/compare'}>
+      <Card className="bg-slate-900 border-slate-800 hover:border-blue-500/50 transition-colors cursor-pointer group min-w-0" onClick={() => window.location.href = '/compare'}>
         <CardContent className="p-4 flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-slate-200 group-hover:text-blue-400 transition-colors">Compare Defenses</h3>
@@ -133,7 +133,7 @@ export default function Overview() {
       </div>
 
       <h2 className="text-xl font-bold mt-8 mb-4">Recent Runs (Newest first by API order)</h2>
-      <div className="rounded-md border border-slate-800 bg-slate-900 overflow-hidden">
+      <div className="rounded-md border border-slate-800 bg-slate-900 overflow-x-auto min-w-0">
         <Table>
           <TableHeader>
             <TableRow className="border-slate-800 hover:bg-slate-800/50">

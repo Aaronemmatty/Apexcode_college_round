@@ -1,8 +1,21 @@
-﻿# AgentBreak
+# AgentBreak
 
 **AgentBreak** is a reproducible security-testing harness for tool-using AI agents. It evaluates agents against prompt injection and unauthorized tool execution in a controlled, mock-tool testing environment with a security gateway, independent evaluation engine, and defense comparison analytics (7 of 8 attacks prevented, 1 documented residual).
 
 > **Note:** Controlled mock-tool harness, deterministic scripted agent. Not an OS-level sandbox, not a measure of real LLM behavior.
+
+---
+
+## Pre-Demo Checklist
+
+Before presenting or running a live demonstration, ensure each item is verified:
+
+- [ ] **Backend up:** FastAPI server listening on `http://localhost:8000` (`GET /api/health` returns status `ok`).
+- [ ] **Frontend up:** Vite development server running on `http://localhost:5173` (sidebar shows green `Backend connected` indicator).
+- [ ] **DB state prepared:** Either fresh database reset or pre-populated via **Run Full Matrix** (24 total trials recorded).
+- [ ] **Replay check verified:** Click **Add replay check** on `/compare` to verify 24 / 24 trials replay consistently.
+- [ ] **Report export working:** Download buttons for **JSON** and **Markdown** successfully trigger file downloads.
+- [ ] **Browser zoom:** Browser zoom level set to 100% for optimal layout and table rendering.
 
 ---
 
@@ -78,7 +91,6 @@ In a second PowerShell terminal:
 ```powershell
 cd frontend
 npm install
-npm run build
 $env:VITE_API_BASE_URL="http://localhost:8000"
 npm run dev
 ```
@@ -110,12 +122,23 @@ In a second terminal:
 ```zsh
 cd frontend
 npm install
-npm run build
 export VITE_API_BASE_URL="http://localhost:8000"
 npm run dev
 ```
 
 The frontend dashboard will run at `http://localhost:5173`.
+
+---
+
+### Production Build Check (Optional)
+
+To verify the production frontend bundle and type checking:
+
+```bash
+cd frontend
+npm run build
+npx tsc --noEmit -p .
+```
 
 ---
 
@@ -140,7 +163,7 @@ See [docs/demo-script.md](docs/demo-script.md) for the complete 4-minute click p
 2. **Baseline Attack (No Defense):** Run an injection attack (`canary_in_authorized_email`) with `No defense`. Inspect the trace timeline showing the unauthorized email dispatch and highlighted synthetic canary leak (**VIOLATED**).
 3. **Attack Blocked (Gateway):** Run the same scenario with `Gateway` defense. Observe the `gateway_decision: blocked` event, the aborted tool execution, and the independent evaluator scoring (**HELD**).
 4. **Benign Workflow Preservation:** Run a benign scenario (`benign_customer_lookup`) with `Gateway`. Confirm normal tool execution, customer note redaction, `0` false blocks, and target task completion (**HELD**).
-5. **Matrix Comparison & Export:** On `/compare`, click **Run Full Matrix** to execute all 12 scenarios $\times$ 2 defenses. Run **Add replay check** (24/24 consistent), and click **Markdown** to export `agentbreak-report.md`.
+5. **Matrix Comparison & Export:** On `/compare`, click **Run Full Matrix** to execute all 12 scenarios x 2 defenses. Run **Add replay check** (24/24 consistent), and click **Markdown** to export `agentbreak-report.md`.
 6. **Honest Limitations:** Note that **7 of 8 attacks are prevented with 1 documented residual miss** (`excessive_access_broad_query` bypasses syntactic pattern rules).
 
 ---

@@ -317,7 +317,7 @@ export default function TrialViewer() {
   const steps = Array.from(groupedEvents.keys()).sort((a, b) => a - b);
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-24 min-w-0">
       <Card className="bg-slate-900 border-slate-800">
         <CardHeader className="pb-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -330,7 +330,7 @@ export default function TrialViewer() {
                 {getVerdictBadge(evaluation.verdict)}
               </div>
             </div>
-            <div className="flex flex-col gap-2 items-end text-sm">
+            <div className="flex flex-col gap-2 items-start md:items-end text-sm min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-slate-500">Trial ID:</span>
                 <span className="font-mono text-slate-300 bg-slate-950 px-2 py-1 rounded border border-slate-800 flex items-center gap-2">

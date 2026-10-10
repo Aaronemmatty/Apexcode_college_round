@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useAsync, listScenarios, getScenario, createRun } from '../api/client';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, X, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 function ScenarioDetailView({ taskId, onClose }: { taskId: string, onClose: () => void }) {
-  const { data: detail, error, loading } = useAsync(() => getScenario(taskId), [taskId]);
+  const { data: detail, loading } = useAsync(() => getScenario(taskId), [taskId]);
   const [defense, setDefense] = useState<'none' | 'gateway' | 'both'>('none');
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
@@ -32,29 +32,44 @@ function ScenarioDetailView({ taskId, onClose }: { taskId: string, onClose: () =
     }
   };
 
-  if (loading) return <div className="p-6 space-y-4"><Skeleton className="h-8" /><Skeleton className="h-40" /></div>;
-  if (error) return <div className="p-6 text-red-400">Failed to load detail: {error.message}</div>;
-  if (!detail) return null;
+  if (loading || !detail) {
+    return (
+      <Card className="bg-slate-900 border-slate-800 h-full flex flex-col justify-between">
+        <CardHeader>
+          <Skeleton className="h-8 w-3/4 bg-slate-800" />
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Skeleton className="h-20 bg-slate-800" />
+          <Skeleton className="h-40 bg-slate-800" />
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <Card className="bg-slate-900 border-slate-800 flex flex-col h-full overflow-hidden">
-      <CardHeader className="bg-slate-950/50 border-b border-slate-800">
-        <div className="flex justify-between items-start">
-          <div>
-            <CardTitle>{detail.title}</CardTitle>
-            <CardDescription className="font-mono mt-1 text-slate-400">{detail.task_id}</CardDescription>
+    <Card className="bg-slate-900 border-slate-800 h-full flex flex-col justify-between overflow-hidden min-w-0">
+      <CardHeader className="flex flex-row items-start justify-between pb-4 border-b border-slate-800">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <Badge variant="outline" className={detail.kind === 'attack' ? 'border-red-500 text-red-400' : 'border-emerald-500 text-emerald-400'}>
+              {detail.kind.toUpperCase()}
+            </Badge>
+            <span className="text-xs text-slate-500 font-mono">{detail.category}</span>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
+          <CardTitle className="text-xl leading-snug">{detail.title}</CardTitle>
         </div>
+        <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 text-slate-400 hover:text-white" aria-label="Close detail">
+          <X className="h-4 w-4" />
+        </Button>
       </CardHeader>
-      <CardContent className="flex-1 overflow-y-auto p-6 space-y-6">
+      <CardContent className="space-y-6 pt-6 overflow-y-auto flex-1 min-w-0">
         <div>
           <h3 className="text-sm font-semibold text-slate-500 mb-1">Description</h3>
-          <p className="text-sm">{detail.description}</p>
+          <p className="text-sm text-slate-300">{detail.description}</p>
         </div>
         <div>
-          <h3 className="text-sm font-semibold text-slate-500 mb-1">User Prompt</h3>
-          <div className="bg-slate-950 p-3 rounded-md text-sm font-mono text-slate-300 whitespace-pre-wrap">
+          <h3 className="text-sm font-semibold text-slate-500 mb-1">Task Prompt</h3>
+          <div className="bg-slate-950 p-3 rounded-md border border-slate-800 text-sm font-mono text-slate-300">
             {detail.user_prompt}
           </div>
         </div>
@@ -93,7 +108,7 @@ function ScenarioDetailView({ taskId, onClose }: { taskId: string, onClose: () =
         </details>
       </CardContent>
       <CardFooter className="bg-slate-950 border-t border-slate-800 flex flex-col p-4 gap-4">
-        <div className="flex w-full items-center gap-4">
+        <div className="flex flex-col sm:flex-row w-full items-stretch sm:items-center gap-4">
           <div className="flex-1">
             <select 
               value={defense} 
@@ -106,7 +121,7 @@ function ScenarioDetailView({ taskId, onClose }: { taskId: string, onClose: () =
               <option value="both">Both (compare)</option>
             </select>
           </div>
-          <Button onClick={handleRun} disabled={running} className="w-32">
+          <Button onClick={handleRun} disabled={running} className="w-full sm:w-32">
             {running && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Run Task
           </Button>
@@ -160,10 +175,10 @@ export default function Scenarios() {
   });
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-full">
-      <div className={`flex-1 flex flex-col gap-6 ${selectedScenarioId ? 'hidden lg:flex' : ''}`}>
+    <div className="flex flex-col lg:flex-row gap-6 h-full min-w-0">
+      <div className={`flex-1 flex flex-col gap-6 min-w-0 ${selectedScenarioId ? 'hidden lg:flex' : ''}`}>
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          <div className="flex bg-slate-900 rounded-md p-1 border border-slate-800 shrink-0">
+          <div className="flex flex-wrap bg-slate-900 rounded-md p-1 border border-slate-800 shrink-0">
             <button
               onClick={() => setFilterType('all')}
               className={`px-4 py-1.5 text-sm rounded-sm font-medium transition-colors ${filterType === 'all' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'}`}
@@ -183,7 +198,7 @@ export default function Scenarios() {
               Benign
             </button>
           </div>
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             <input
               type="text"
               placeholder="Filter by title or category..."
@@ -206,7 +221,7 @@ export default function Scenarios() {
               return (
                 <Card 
                   key={scenario.task_id} 
-                  className={`bg-slate-900 border-slate-800 cursor-pointer hover:border-slate-600 transition-colors ${isSelected ? 'ring-2 ring-blue-500 border-transparent' : ''}`}
+                  className={`bg-slate-900 border-slate-800 cursor-pointer hover:border-slate-600 transition-colors min-w-0 ${isSelected ? 'ring-2 ring-blue-500 border-transparent' : ''}`}
                   onClick={() => setSelectedScenarioId(scenario.task_id)}
                 >
                   <CardHeader className="pb-3">
@@ -229,7 +244,7 @@ export default function Scenarios() {
       </div>
 
       {selectedScenarioId && (
-        <div className="lg:w-1/3 shrink-0 h-full">
+        <div className="w-full lg:w-1/3 shrink-0 h-full min-w-0">
           <ScenarioDetailView taskId={selectedScenarioId} onClose={() => setSelectedScenarioId(null)} />
         </div>
       )}

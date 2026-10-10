@@ -36,7 +36,7 @@ function TitleManager() {
 
 function Sidebar() {
   const { data: health, loading } = useAsync(getHealth);
-  const isHealthy = health?.status === 'healthy';
+  const isHealthy = health?.status === 'ok' || health?.status === 'healthy';
 
   return (
     <div className="flex flex-col h-full bg-slate-950 border-r border-slate-800 text-slate-100">
