@@ -1,5 +1,6 @@
 """FastAPI application entry point for AgentBreak."""
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,12 +8,25 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.health import router as health_router
+from app.api.runs import router as runs_router
+from app.api.scenarios import router as scenarios_router
+from app.api.trials import router as trials_router
 from app.config import settings
+from app.db.session import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan context: initialize database on startup."""
+    init_db()
+    yield
+
 
 app = FastAPI(
     title=settings.APP_NAME,
     version="0.1.0",
     description="AgentBreak: Reproducible security-testing harness for tool-using AI agents.",
+    lifespan=lifespan,
 )
 
 # CORS configuration
@@ -67,3 +81,6 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 # Include routers under /api
 app.include_router(health_router, prefix="/api")
+app.include_router(scenarios_router, prefix="/api")
+app.include_router(runs_router, prefix="/api")
+app.include_router(trials_router, prefix="/api")

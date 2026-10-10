@@ -12,26 +12,28 @@
 Apexcode_college_round/
 ├── backend/
 │   ├── app/
-│   │   ├── api/          # API route handlers (e.g. /api/health)
-│   │   ├── agent/        # Agent harness abstractions
-│   │   ├── sandbox/      # Mock tool definitions & execution sandbox
-│   │   ├── gateway/      # Security gateway & policy evaluation
-│   │   ├── evaluator/    # Verdict evaluation & scoring
-│   │   ├── attacks/      # Attack payloads & generation
+│   │   ├── api/          # API route handlers (/api/health, /api/scenarios, /api/runs, /api/trials)
+│   │   ├── agent/        # ScriptedAgent, ToolExecutor, TraceRecorder, Tasks
+│   │   ├── sandbox/      # Mock ToolEnvironment & synthetic customer/document data
+│   │   ├── gateway/      # Security gateway & policy evaluation (Phase 3)
+│   │   ├── evaluator/    # Verdict evaluation & scoring (Phase 3)
+│   │   ├── attacks/      # Attack payloads & generation (Phase 4)
 │   │   ├── replay/       # Event trace replay engine
 │   │   ├── reports/      # Benchmark reporting
 │   │   ├── db/           # SQLite persistence models & sessions
 │   │   ├── config.py     # Environment variable configuration
-│   │   ├── schemas.py    # Pydantic schemas (HealthResponse, ErrorResponse)
+│   │   ├── events.py     # Canonical TraceEvent contract models & enums
+│   │   ├── orchestrator.py# Run lifecycle orchestration
+│   │   ├── schemas.py    # Pydantic schemas (Health, Scenarios, Runs, Trials)
 │   │   └── main.py       # FastAPI application & error handling
 │   ├── scenarios/        # Scenario JSON files (.gitkeep)
-│   ├── tests/            # Pytest test suite (test_health.py)
+│   ├── tests/            # Pytest test suite (tools, agent, API, health)
 │   ├── requirements.txt  # Pinned backend dependencies
 │   └── pytest.ini        # Pytest configuration
 ├── frontend/
 │   ├── src/
 │   │   ├── api/          # Fetch client wrapper
-│   │   ├── types/        # TypeScript interfaces (HealthResponse)
+│   │   ├── types/        # TypeScript interfaces (HealthResponse, TraceEvent)
 │   │   ├── App.tsx       # Dark security status dashboard
 │   │   └── index.css     # Tailwind CSS v4 entry
 │   ├── .env.example      # Frontend environment variables
@@ -40,6 +42,7 @@ Apexcode_college_round/
 │   └── cassettes/        # Mock interaction recordings (.gitkeep)
 ├── docs/
 │   ├── architecture.md   # System architecture overview
+│   ├── event-contract.md # Canonical event contract documentation & examples
 │   ├── threat-model.md   # Threat model taxonomy
 │   └── limitations.md    # Mock harness boundaries & limitations
 ├── .env.example          # Root environment template
@@ -77,7 +80,7 @@ pytest -v
 uvicorn app.main:app --reload --port 8000
 ```
 
-The backend API will be running at `http://localhost:8000`.
+The backend API will run at `http://localhost:8000`.
 - Health Check: `http://localhost:8000/api/health`
 - Interactive OpenAPI Docs: `http://localhost:8000/docs`
 
@@ -101,8 +104,44 @@ npm run build
 npm run dev
 ```
 
-The frontend dashboard will be running at `http://localhost:5173`.
-It connects to `http://localhost:8000/api/health` and displays the real-time connectivity status.
+The frontend dashboard will run at `http://localhost:5173`.
+
+---
+
+## 🧪 Run a Task (PowerShell Examples)
+
+When the backend server is running on `http://localhost:8000`:
+
+### Execute an Attack Scenario (Indirect Prompt Injection)
+
+```powershell
+# Execute the indirect injection attack task
+$r = Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/runs `
+  -ContentType "application/json" `
+  -Body '{"task_id":"indirect_injection_email_leak","defense":"none"}'
+
+# Inspect the created run and trial ID
+$r | ConvertTo-Json
+
+# Fetch the chronological event trace for the trial
+$trialId = $r.trials[0].trial_id
+$trace = Invoke-RestMethod -Uri "http://localhost:8000/api/trials/$trialId/trace"
+$trace.events | Format-Table -Property step, type, tool, source, execution_status
+```
+
+### Execute a Benign Task
+
+```powershell
+# Execute the benign email task
+$r = Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/runs `
+  -ContentType "application/json" `
+  -Body '{"task_id":"benign_valid_email","defense":"none"}'
+
+# Fetch and inspect the trace
+$trialId = $r.trials[0].trial_id
+$trace = Invoke-RestMethod -Uri "http://localhost:8000/api/trials/$trialId/trace"
+$trace.events | Format-Table -Property step, type, tool, source, execution_status
+```
 
 ---
 
