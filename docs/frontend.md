@@ -1,40 +1,49 @@
-# Frontend Architecture
+﻿# Frontend Architecture
 
 ## Routes
-The frontend is a single-page application built with React Router DOM, utilizing the following routes:
-- `/` - Overview (Metrics and Recent Runs)
-- `/scenarios` - Scenarios (Coming in Phase 5B)
-- `/trials/:trialId` - Trial Trace Viewer (Coming in Phase 5B)
-- `/compare` - Compare (Coming in Phase 5B)
+The frontend is a single-page application built with React, React Router DOM, and Tailwind CSS / shadcn components:
+- `/` - Overview (Headline Defense Stats, Server-Side Aggregations, and Recent Runs)
+- `/scenarios` - Scenario Catalog and Interactive Run Launcher
+- `/trials/:trialId` - Trial Trace Timeline, Invariant Evaluations, and Canary Indicators
+- `/compare` - Phase 6 Defense Efficacy Comparison, Categorical Breakdown, and Report Exports
 
 ## API Client
-The API client is located in `src/api/client.ts`. It leverages the native `fetch` API, returning strict TypeScript types representing the canonical backend contracts. It includes:
-- A custom `ApiError` class which gracefully parses the standard `{"error": {"code", "message"}}` responses and HTTP status codes, or defaults to a `NETWORK_ERROR`.
-- A simple hook `useAsync(fetcherFn)` providing `{ data, error, loading, reload }` state without depending on heavy third-party async libraries.
+The API client is located in `src/api/client.ts`. It leverages the native `fetch` API, returning strict TypeScript types representing canonical backend contracts:
+- `ApiError`: Parses standard `{"error": {"code", "message"}}` payloads and HTTP status codes, defaulting to `NETWORK_ERROR`.
+- `useAsync(fetcherFn)`: Hook providing `{ data, error, loading, reload }` state management without heavy third-party async dependencies.
+- **Phase 6 Analytics Helpers**:
+  - `getCompare()`: Fetches comparison metrics from `GET /api/compare`.
+  - `runReplayAll()`: Triggers full matrix replay checks via `POST /api/replays/run-all`.
+  - `getReportUrl(format)`: Resolves full URL for downloading reports (`json` or `md`).
+  - `downloadReport(format)`: Triggers file download of JSON or Markdown reports.
+  - `getReport(format)`: Retrieves report payload programmatically.
 
-## Overview Computations
-Currently, all dashboard metrics on the Overview page are computed client-side by joining `listRuns` and `listScenarios`.
-- **Total Executions**: All trials are counted. Trials with a status other than `completed` or a verdict of `inconclusive` are logged separately and excluded from rate calculations.
-- **Attack Success Rate (No Defense)**: Counts `violated` attack trials divided by completed attack trials without a defense.
-- **Residual with Gateway**: Counts `violated` attack trials divided by completed attack trials protected by the `gateway`.
-- **Benign Trials Held**: Counts `held` benign trials divided by completed benign trials. Note: this relies purely on the security verdict logic.
+## Overview Dashboard
+The Overview page consumes server-side aggregated metrics via `getCompare()` along with `listScenarios` and `listRuns`:
+- **Headline Stat Cards**: Displays Total Runs, Attack Success without Defense, Residual Compromise with Gateway, and Benign Trials Held.
+- **Exclusion Note**: Highlights failed or inconclusive trials excluded from rate calculations.
+- **Recent Runs Table**: Ordered chronological list of recent executions with status badges and links to trace viewers.
 
-> **Note:** Computing metrics client-side is a temporary MVP measure. In Phase 6, these aggregations will be moved to a dedicated server-side analytics endpoint to eliminate heavy client-side filtering.
+## Compare Page
+The Compare page (`/compare`) offers comparative evaluation:
+- **Headline Cards**: Attack violation rates, residual risk, benign workflow preservation, and false block rate.
+- **Category Chart**: Side-by-side bar visualization of violations across attack categories.
+- **Replay Consistency Card & Action**: Triggers `POST /api/replays/run-all` to verify trace determinism across all trials.
+- **Report Exports**: Download buttons for both JSON and Markdown (`agentbreak-report.md`) formats.
+- **Per-Scenario Comparison Table**:
+  - Detailed rows showing baseline verdict, gateway verdict, change status (`prevented`, `still_violated`, `no_change`, `incomplete`), and triggered gateway rule IDs.
+  - Filters for `All`, `Attacks`, `Benign`, and `Changed`.
+  - Direct links to trial trace logs.
+- **Block Counts by Rule Table**: Displays blocked call frequencies and total violations listed per gateway rule.
 
 ## Scenarios & Launcher
-The Scenarios page lists all available tests, supporting filtering by kind and full-text search. The detail panel includes a **Run Launcher**:
-- **Single Defense**: Initiates a single test run (`No defense` or `Gateway`) and navigates directly to the trace viewer upon completion.
-- **Both (Compare)**: Runs the baseline (`none`) and then the `gateway` trial sequentially. It navigates to the gateway trace viewer, embedding the baseline trial ID into the `?baseline=` query parameter to allow easy comparison links.
+The Scenarios page lists all 12 test scenarios with filtering and full-text search. The detail panel includes:
+- **Single Defense Run**: Launches an individual run (`No defense` or `Gateway`) and navigates to the trace viewer.
+- **Compare Run**: Executes baseline and gateway trials sequentially for comparative analysis.
 
 ## Trace Viewer & Evidence
-The Trial Trace Viewer presents the full lifecycle of an agent trial.
-- **Evaluation Panel**: Displays all scored invariants. When an invariant is violated, it provides specific **Evidence** (a text detail and related event IDs). Clicking an event ID automatically scrolls to and highlights the corresponding step in the timeline.
-- **Timeline**: A chronological list of agent/tool interactions. Long text and JSON arguments are truncated but expandable.
-- **Synthetic Canary Exposure**: Any appearance of the exact canary string (`CANARY-[0-9A-F]{6}-DO-NOT-DISCLOSE`) is automatically highlighted with a red badge, exposing leaks explicitly.
-- **Replay Check**: A determinism check button triggers the backend replay endpoint to verify if the agent diverges from its recorded trace.
-
-### Manual Verification Required
-Due to limitations in the environment, certain frontend attributes require human eyes to verify:
-1. **Responsiveness**: Specifically, confirming the timeline layout and sidebars collapse gracefully down to a 375px width screen.
-2. **Keyboard Focus Rings**: Ensuring interactive elements (tabs, filters, timeline buttons) properly show focus states for accessibility.
-3. **Scroll into View**: Verifying the smooth scrolling animation works perfectly when clicking evidence tags in the invariant evaluation panel.
+The Trial Trace Viewer presents the full lifecycle of an agent trial:
+- **Evaluation Panel**: Displays all evaluated invariants and specific evidence (event IDs).
+- **Timeline**: Chronological list of agent inputs, tool requests, gateway decisions, and outputs.
+- **Synthetic Canary Exposure**: Highlights leaks of the canary token (`CANARY-[0-9A-F]{6}-DO-NOT-DISCLOSE`).
+- **Single Replay Check**: Verifies deterministic reproduction of individual trial traces.

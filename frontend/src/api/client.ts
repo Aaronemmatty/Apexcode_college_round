@@ -60,6 +60,31 @@ export const replayTrial = (id: string) => fetchApi<ReplayResponse>(`/api/trials
 export const getCompare = () => fetchApi<CompareMetrics>('/api/compare');
 export const runReplayAll = () => fetchApi<{ replayed: number; consistent: number; inconsistent_trial_ids: string[] }>('/api/replays/run-all', { method: 'POST' });
 
+export const getReportUrl = (format: 'json' | 'md'): string => {
+  return `${getBaseUrl()}/api/report?format=${format}`;
+};
+
+export const downloadReport = async (format: 'json' | 'md'): Promise<void> => {
+  const url = getReportUrl(format);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new ApiError('REPORT_DOWNLOAD_FAILED', `HTTP ${response.status}`, response.status);
+  }
+  const blob = await response.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `agentbreak-report.${format}`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+};
+
+export const getReport = (format: 'json' | 'md'): Promise<any> => {
+  return fetchApi<any>(`/api/report?format=${format}`);
+};
+
+
 export function useAsync<T>(asyncFn: () => Promise<T>, dependencies: any[] = []) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);

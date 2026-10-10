@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 import json
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -128,7 +128,12 @@ def get_report(format: str = Query("json"), db: Session = Depends(get_db)):
     md += f"- Excluded Inconclusive: {metrics['excluded_inconclusive']}\n"
     md += f"- Incomplete Scenarios: {metrics['incomplete_scenarios']}\n\n"
     
-    md += "## Known limitations\n"
-    md += "The excessive_access_broad_query scenario might bypass gateway rules (residual miss).\n"
+    md += "## Known Limitations\n"
+    if metrics["attack_still_violated"]:
+        still_v_str = ", ".join(metrics["attack_still_violated"])
+        md += f"- **Still-Violated Scenarios (Gateway):** {still_v_str}\n"
+    else:
+        md += "- **Still-Violated Scenarios (Gateway):** None\n"
+    md += "- **Residual Bypass Note:** The excessive_access_broad_query scenario bypasses syntactic pattern rules (residual miss).\n"
     
     return Response(content=md, media_type="text/markdown", headers={"Content-Disposition": "attachment; filename=agentbreak-report.md"})

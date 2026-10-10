@@ -1,4 +1,4 @@
-import json
+﻿import json
 import os
 from collections import defaultdict
 from sqlalchemy.orm import Session
@@ -10,9 +10,9 @@ def load_scenarios():
     scenarios = []
     if not os.path.exists(scenarios_dir):
         return []
-    for f in os.listdir(scenarios_dir):
+    for f in sorted(os.listdir(scenarios_dir)):
         if f.endswith(".json"):
-            with open(os.path.join(scenarios_dir, f)) as f_in:
+            with open(os.path.join(scenarios_dir, f), "r", encoding="utf-8") as f_in:
                 data = json.load(f_in)
                 scenarios.append({
                     "task_id": data["scenario_id"],
@@ -35,6 +35,8 @@ def get_compare_metrics(db: Session):
         if t_row.status == "failed":
             excluded_failed += 1
             continue
+        if t_row.status != "completed":
+            continue
         
         ev_row = db.execute(select(EvaluationRow).where(EvaluationRow.trial_id == t_row.trial_id)).scalar()
         verdict = ev_row.verdict if ev_row else "inconclusive"
@@ -47,7 +49,7 @@ def get_compare_metrics(db: Session):
     
     selected_trials = {}
     for k, lst in grouped.items():
-        lst.sort(key=lambda x: x[0].started_at, reverse=True)
+        lst.sort(key=lambda x: (x[0].started_at, x[0].trial_id), reverse=True)
         selected_trials[k] = lst[0]
         
     attack_violated_none_n = 0
@@ -123,28 +125,30 @@ def get_compare_metrics(db: Session):
                 if payload.get("type") == "gateway_decision":
                     res = payload.get("result", {})
                     vios = res.get("violations", []) if res else []
-                    for v in vios:
-                        if isinstance(v, dict):
-                            rid = v.get("rule_id")
-                        else:
-                            rid = v
-                        if rid:
-                            violations_listed[rid] += 1
+                    rule_id = payload.get("rule_id")
+                    if vios:
+                        for v in vios:
+                            rid = v.get("rule_id") if isinstance(v, dict) else v
+                            if rid:
+                                violations_listed[rid] += 1
+                    elif rule_id and rule_id != "policy_allow":
+                        violations_listed[rule_id] += 1
                     
                     if payload.get("decision") == "blocked":
-                        for v in vios:
-                            if isinstance(v, dict):
-                                rid = v.get("rule_id")
-                            else:
-                                rid = v
-                            if rid:
-                                blocked_rules.add(rid)
-                                block_counts_by_rule[rid] += 1
+                        if vios:
+                            for v in vios:
+                                rid = v.get("rule_id") if isinstance(v, dict) else v
+                                if rid:
+                                    blocked_rules.add(rid)
+                                    block_counts_by_rule[rid] += 1
+                        elif rule_id and rule_id != "policy_allow":
+                            blocked_rules.add(rule_id)
+                            block_counts_by_rule[rule_id] += 1
             
             gw_data = {
                 "trial_id": t.trial_id,
                 "verdict": ev.verdict,
-                "blocked_rule_ids": list(blocked_rules),
+                "blocked_rule_ids": sorted(blocked_rules),
                 "task_completed": task_comp,
                 "false_blocks": fb
             }

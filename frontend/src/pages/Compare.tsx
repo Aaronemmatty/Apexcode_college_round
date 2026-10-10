@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useAsync, getCompare, runReplayAll } from '../api/client';
+import { useAsync, getCompare, runReplayAll, downloadReport } from '../api/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -63,14 +63,7 @@ export default function Compare() {
 
   const handleExport = async (format: 'json' | 'md') => {
     try {
-      const url = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/report?format=${format}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `agentbreak-report.${format}`;
-      a.click();
+      await downloadReport(format);
     } catch (e) {
       alert(`Export failed: ${e}`);
     }
@@ -221,9 +214,9 @@ export default function Compare() {
               Details of the newest completed trial for each scenario and defense.
               {data.incomplete_scenarios > 0 && ` (${data.incomplete_scenarios} incomplete scenarios hidden or marked)`}
             </CardDescription>
-            {(data.excluded_failed > 0 || data.excluded_inconclusive > 0) && (
-              <p className="text-xs text-slate-500 mt-1">Excluded trials note: {data.excluded_failed} failed, {data.excluded_inconclusive} inconclusive.</p>
-            )}
+            <p className="text-xs text-slate-500 mt-1">
+              Excluded trials: {data.excluded_failed} failed, {data.excluded_inconclusive} inconclusive.
+            </p>
           </div>
           <div className="flex gap-2">
             <Button variant={filter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('all')}>All</Button>
