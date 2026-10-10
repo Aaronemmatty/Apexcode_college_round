@@ -21,7 +21,7 @@ from app.gateway.policy import GatewayPolicy
 from app.sandbox.tools import ToolEnvironment
 from app.events import TraceEvent
 
-SUPPORTED_DEFENSES = {"none", "gateway"}
+SUPPORTED_DEFENSES = {"none", "hardening", "prompt_hardening", "gateway"}
 
 class SimulatedTrial(BaseModel):
     events: list[TraceEvent]
@@ -35,14 +35,25 @@ def simulate_trial(task: TaskSpec, defense: str, run_id: str, trial_id: str) -> 
     direct = DirectExecutor(env)
     recorder = TraceRecorder(run_id=run_id, trial_id=trial_id)
 
-    if defense == "gateway":
+    defense_mode = "hardening" if defense in ("hardening", "prompt_hardening") else defense
+
+    if defense_mode == "gateway":
         policy = GatewayPolicy.from_task(task)
         gateway = SecurityGateway(policy)
         executor = GatewayExecutor(inner=direct, gateway=gateway, recorder=recorder)
+        agent = ScriptedAgent(task=task, executor=executor, recorder=recorder)
+    elif defense_mode == "hardening":
+        executor = direct
+        agent = ScriptedAgent(
+            task=task,
+            executor=executor,
+            recorder=recorder,
+            follow_embedded_instructions=False,
+            filter_prompt_injection=True,
+        )
     else:
         executor = direct
-
-    agent = ScriptedAgent(task=task, executor=executor, recorder=recorder)
+        agent = ScriptedAgent(task=task, executor=executor, recorder=recorder)
 
     trial_status = "completed"
     trial_error = None
@@ -90,6 +101,9 @@ def execute_run(db: Session, task_id: str, defense: str = "none") -> RunRow:
                 f"{sorted(SUPPORTED_DEFENSES)}."
             ),
         )
+
+    if defense == "prompt_hardening":
+        defense = "hardening" 
 
     task = get_task(task_id)
     if task is None:

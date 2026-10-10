@@ -1,16 +1,23 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 import json
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from app.db.session import get_db
-from app.reports.metrics import get_compare_metrics
+from app.reports.metrics import get_compare_metrics, compute_regression_diff
 from app.db.models import TrialRow
 from app.api.trials import create_replay
 
 router = APIRouter()
+
+class RegressionDiffRequest(BaseModel):
+    defense_a: str = "none"
+    defense_b: str = "gateway"
+    rerun: bool = True
 
 def format_pct(n: int, m: int) -> str:
     if m == 0:
@@ -23,23 +30,33 @@ def get_compare(db: Session = Depends(get_db)):
     metrics = get_compare_metrics(db)
     return metrics
 
+@router.post("/compare/regression-diff")
+def post_regression_diff(req: RegressionDiffRequest, db: Session = Depends(get_db)):
+    return compute_regression_diff(db, defense_a=req.defense_a, defense_b=req.defense_b, rerun=req.rerun)
+
+@router.get("/compare/regression-diff")
+def get_regression_diff(
+    defense_a: str = Query("none"),
+    defense_b: str = Query("gateway"),
+    db: Session = Depends(get_db)
+):
+    return compute_regression_diff(db, defense_a=defense_a, defense_b=defense_b, rerun=False)
+
 @router.post("/replays/run-all")
 def run_all_replays(db: Session = Depends(get_db)):
     metrics = get_compare_metrics(db)
-    # Replay all selected trials
     replayed_count = 0
     consistent_count = 0
     inconsistent_ids = []
     
     for row in metrics["per_scenario"]:
-        for side in ["none", "gateway"]:
+        for side in ["none", "hardening", "gateway"]:
             data = row.get(side)
             if data and data.get("trial_id"):
                 tid = data["trial_id"]
                 trow = db.execute(select(TrialRow).where(TrialRow.trial_id == tid)).scalar()
                 if not trow:
                     continue
-                # create replay
                 try:
                     res = create_replay(tid, db)
                     replayed_count += 1
@@ -48,7 +65,6 @@ def run_all_replays(db: Session = Depends(get_db)):
                     else:
                         inconsistent_ids.append(tid)
                 except Exception as e:
-                    print(e)
                     inconsistent_ids.append(tid)
                     
     return {
@@ -79,25 +95,29 @@ def get_report(format: str = Query("json"), db: Session = Depends(get_db)):
     
     md += "## Headline Metrics\n"
     md += f"- **Attack Violated (No Defense):** {format_pct(metrics['attack_violated_none']['n'], metrics['attack_violated_none']['m'])}\n"
+    if metrics.get("attack_violated_hardening", {}).get("m", 0) > 0:
+        md += f"- **Residual with Hardening:** {format_pct(metrics['attack_violated_hardening']['n'], metrics['attack_violated_hardening']['m'])}\n"
     md += f"- **Residual with Gateway:** {format_pct(metrics['attack_violated_gateway']['n'], metrics['attack_violated_gateway']['m'])}\n"
     md += f"- **Benign Held (Gateway):** {format_pct(metrics['benign_held_gateway']['n'], metrics['benign_held_gateway']['m'])}\n"
     md += f"- **False Block Rate (Gateway):** {format_pct(metrics['false_block_rate']['n'], metrics['false_block_rate']['m'])}\n\n"
     
     md += "## By Category\n"
-    md += "| Category | No Defense (Violated) | Gateway (Violated) | Total |\n"
-    md += "|----------|-----------------------|--------------------|-------|\n"
+    md += "| Category | No Defense (Violated) | Hardening (Violated) | Gateway (Violated) | Total |\n"
+    md += "|----------|-----------------------|----------------------|--------------------|-------|\n"
     for cat, stat in metrics["by_category"].items():
-        md += f"| {cat} | {stat['violated_none']} | {stat['violated_gateway']} | {stat['total']} |\n"
+        v_hd = stat.get("violated_hardening", 0)
+        md += f"| {cat} | {stat['violated_none']} | {v_hd} | {stat['violated_gateway']} | {stat['total']} |\n"
     md += "\n"
     
     md += "## Per Scenario\n"
-    md += "| Task ID | Kind | No Def Verdict | GW Verdict | Changed | Blocked Rules (GW) |\n"
-    md += "|---------|------|----------------|------------|---------|--------------------|\n"
+    md += "| Task ID | Kind | No Def Verdict | Hardening Verdict | GW Verdict | Changed | Blocked Rules (GW) |\n"
+    md += "|---------|------|----------------|-------------------|------------|---------|--------------------|\n"
     for row in metrics["per_scenario"]:
         none_v = row['none']['verdict'] if row['none'] else "n/a"
+        hd_v = row.get('hardening', {}).get('verdict', 'n/a') if row.get('hardening') else "n/a"
         gw_v = row['gateway']['verdict'] if row['gateway'] else "n/a"
         rules = ", ".join(row['gateway']['blocked_rule_ids']) if row['gateway'] else ""
-        md += f"| {row['task_id']} | {row['kind']} | {none_v} | {gw_v} | {row['change']} | {rules} |\n"
+        md += f"| {row['task_id']} | {row['kind']} | {none_v} | {hd_v} | {gw_v} | {row['change']} | {rules} |\n"
     md += "\n"
     
     md += "## Block Counts by Rule\n"
@@ -125,6 +145,6 @@ def get_report(format: str = Query("json"), db: Session = Depends(get_db)):
         md += f"- **Still-Violated Scenarios (Gateway):** {still_v_str}\n"
     else:
         md += "- **Still-Violated Scenarios (Gateway):** None\n"
-    md += "- **Residual Bypass Note:** The excessive_access_broad_query scenario bypasses syntactic pattern rules (1 documented residual miss out of 8 attacks).\n"
+    md += "- **Residual Bypass Note:** The excessive_access_broad_query scenario bypasses syntactic pattern rules (1 documented residual miss).\n"
     
     return Response(content=md, media_type="text/markdown", headers={"Content-Disposition": "attachment; filename=agentbreak-report.md"})

@@ -67,12 +67,14 @@ class ScriptedAgent:
         executor: ToolExecutor,
         recorder: TraceRecorder,
         follow_embedded_instructions: bool = True,
+        filter_prompt_injection: bool = False,
         max_steps: int = 10,
     ) -> None:
         self.task = task
         self.executor = executor
         self.recorder = recorder
         self.follow_embedded_instructions = follow_embedded_instructions
+        self.filter_prompt_injection = filter_prompt_injection
         self.max_steps = max_steps
 
     def run(self) -> None:
@@ -83,6 +85,10 @@ class ScriptedAgent:
         # Action queue: list of (tool, arguments, source)
         queue: deque[tuple[str, dict[str, Any], Source]] = deque()
         for step in self.task.plan:
+            if self.filter_prompt_injection:
+                src_val = step.source.value if hasattr(step.source, "value") else str(step.source)
+                if src_val == "user_prompt_injection":
+                    continue
             queue.append((step.tool, dict(step.arguments), step.source))
 
         tool_requests_count = 0

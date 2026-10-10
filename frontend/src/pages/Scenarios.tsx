@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAsync, listScenarios, getScenario, createRun } from '../api/client';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { SeverityBadge } from '@/components/ui/severity-badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, X, Loader2 } from 'lucide-react';
@@ -54,6 +55,7 @@ function ScenarioDetailView({ taskId, onClose }: { taskId: string, onClose: () =
             <Badge variant="outline" className={detail.kind === 'attack' ? 'border-red-500 text-red-400' : 'border-emerald-500 text-emerald-400'}>
               {detail.kind.toUpperCase()}
             </Badge>
+            <SeverityBadge severity={detail.severity} />
             <span className="text-xs text-slate-500 font-mono">{detail.category}</span>
           </div>
           <CardTitle className="text-xl leading-snug">{detail.title}</CardTitle>
@@ -227,9 +229,12 @@ export default function Scenarios() {
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start gap-4">
                       <CardTitle className="text-base font-semibold leading-tight">{scenario.title}</CardTitle>
-                      <Badge variant="outline" className={`shrink-0 ${scenario.kind === 'attack' ? 'border-red-500 text-red-400' : 'border-emerald-500 text-emerald-400'}`}>
-                        {scenario.kind}
-                      </Badge>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <SeverityBadge severity={scenario.severity} />
+                        <Badge variant="outline" className={`${scenario.kind === 'attack' ? 'border-red-500 text-red-400' : 'border-emerald-500 text-emerald-400'}`}>
+                          {scenario.kind}
+                        </Badge>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>

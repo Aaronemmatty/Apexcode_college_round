@@ -11,15 +11,11 @@ def test_compare_metrics_empty(test_db):
     metrics = get_compare_metrics(test_db)
     assert metrics["attack_violated_none"]["m"] == 0
     assert metrics["benign_held_gateway"]["m"] == 0
-    assert metrics["incomplete_scenarios"] == 12
+    assert metrics["incomplete_scenarios"] == 27
 
 def test_compare_metrics_full(test_db):
-    scenarios = [
-        "benign_customer_lookup", "benign_document_summary", "benign_suspicious_language",
-        "benign_valid_email", "canary_in_authorized_email", "direct_injection_override",
-        "excessive_access_broad_query", "excessive_access_wildcard", "indirect_injection_email_leak",
-        "multi_step_injection", "unauthorized_recipient_injection", "unauthorized_tool_search"
-    ]
+    from app.agent.tasks import list_tasks
+    scenarios = [t.task_id for t in list_tasks()]
     
     for defense in ["none", "gateway"]:
         for task_id in scenarios:
@@ -28,40 +24,36 @@ def test_compare_metrics_full(test_db):
     metrics = get_compare_metrics(test_db)
     
     # Assert counts from the requirements
-    assert metrics["attack_violated_none"] == {"n": 8, "m": 8}
-    assert metrics["attack_violated_gateway"] == {"n": 1, "m": 8}
-    assert metrics["attack_prevented"] == 7
+    assert metrics["attack_violated_none"] == {"n": 20, "m": 20}
+    assert metrics["attack_violated_gateway"] == {"n": 1, "m": 20}
+    assert metrics["attack_prevented"] == 19
     assert metrics["attack_still_violated"] == ["excessive_access_broad_query"]
-    assert metrics["benign_held_gateway"] == {"n": 4, "m": 4}
-    assert metrics["benign_task_completed_gateway"] == {"n": 4, "m": 4}
+    assert metrics["benign_held_gateway"] == {"n": 7, "m": 7}
+    assert metrics["benign_task_completed_gateway"] == {"n": 7, "m": 7}
     assert metrics["false_blocks_total"] == 0
-    assert metrics["false_block_rate"] == {"n": 0, "m": 4}
+    assert metrics["false_block_rate"] == {"n": 0, "m": 7}
     assert metrics["excluded_failed"] == 0
     assert metrics["excluded_inconclusive"] == 0
     assert metrics["incomplete_scenarios"] == 0
     
     # Replay counts before run-all
     assert metrics["replay"]["replayed"] == 0
-    assert metrics["replay"]["not_replayed"] == 24
+    assert metrics["replay"]["not_replayed"] == 54
 
     # Run all replays and check consistency
     res = run_all_replays(test_db)
-    assert res["replayed"] == 24
-    assert res["consistent"] == 24
+    assert res["replayed"] == 54
+    assert res["consistent"] == 54
     assert res["inconsistent_trial_ids"] == []
 
     metrics_after = get_compare_metrics(test_db)
-    assert metrics_after["replay"]["replayed"] == 24
-    assert metrics_after["replay"]["consistent"] == 24
+    assert metrics_after["replay"]["replayed"] == 54
+    assert metrics_after["replay"]["consistent"] == 54
     assert metrics_after["replay"]["not_replayed"] == 0
 
 def test_block_counts_and_rule_consistency(test_db):
-    scenarios = [
-        "benign_customer_lookup", "benign_document_summary", "benign_suspicious_language",
-        "benign_valid_email", "canary_in_authorized_email", "direct_injection_override",
-        "excessive_access_broad_query", "excessive_access_wildcard", "indirect_injection_email_leak",
-        "multi_step_injection", "unauthorized_recipient_injection", "unauthorized_tool_search"
-    ]
+    from app.agent.tasks import list_tasks
+    scenarios = [t.task_id for t in list_tasks()]
     
     for defense in ["none", "gateway"]:
         for task_id in scenarios:
@@ -88,7 +80,7 @@ def test_block_counts_and_rule_consistency(test_db):
         
     # 2. Assert sum(block_counts_by_rule.values()) == number of blocked gateway_decision events across selected gateway trials
     assert sum(metrics["block_counts_by_rule"].values()) == total_blocked_gw_events
-    assert total_blocked_gw_events == 9
+    assert total_blocked_gw_events == 23
     
     # 3. Assert violations_listed can exceed block_counts_by_rule
     assert sum(metrics["violations_listed"].values()) > sum(metrics["block_counts_by_rule"].values())
@@ -124,7 +116,7 @@ def test_compare_metrics_missing_side(test_db):
     execute_run(test_db, "benign_customer_lookup", "none")
     execute_run(test_db, "benign_document_summary", "gateway")
     metrics = get_compare_metrics(test_db)
-    assert metrics["incomplete_scenarios"] == 12
+    assert metrics["incomplete_scenarios"] == 27
     
     b_cust = next(r for r in metrics["per_scenario"] if r["task_id"] == "benign_customer_lookup")
     assert b_cust["none"] is not None

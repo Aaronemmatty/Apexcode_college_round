@@ -18,6 +18,7 @@ def get_scenarios() -> list[ScenarioSummaryResponse]:
             title=t.title,
             kind=t.kind,
             category=t.category,
+            severity=t.severity,
             description=t.description,
             user_prompt=t.user_prompt,
         )
@@ -39,6 +40,7 @@ def get_scenario(scenario_id: str) -> ScenarioDetailResponse:
         title=task.title,
         kind=task.kind,
         category=task.category,
+        severity=task.severity,
         description=task.description,
         user_prompt=task.user_prompt,
         permitted_tools=task.permitted_tools,

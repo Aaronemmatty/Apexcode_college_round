@@ -12,6 +12,8 @@ from app.api.runs import router as runs_router
 from app.api.scenarios import router as scenarios_router
 from app.api.trials import router as trials_router
 from app.api.compare import router as compare_router
+from app.api.campaigns import router as campaigns_router
+from app.api.custom_attack import router as custom_attack_router
 from app.config import settings
 from app.db.session import init_db
 
@@ -86,3 +88,5 @@ app.include_router(scenarios_router, prefix="/api")
 app.include_router(runs_router, prefix="/api")
 app.include_router(trials_router, prefix="/api")
 app.include_router(compare_router, prefix="/api")
+app.include_router(campaigns_router, prefix="/api")
+app.include_router(custom_attack_router, prefix="/api")

@@ -4,6 +4,8 @@
 
 export type Verdict = 'violated' | 'held' | 'inconclusive'
 
+export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+
 export type InvariantStatus = 'violated' | 'held' | 'not_evaluable'
 
 export interface EvidenceItem {
@@ -20,6 +22,7 @@ export interface InvariantResult {
 export interface Evaluation {
   trial_id: string
   verdict: Verdict
+  severity?: Severity
   invariants: InvariantResult[]
   task_completed: boolean
   false_blocks: number

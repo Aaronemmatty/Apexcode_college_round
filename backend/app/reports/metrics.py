@@ -1,4 +1,4 @@
-﻿import json
+import json
 import os
 from collections import defaultdict
 from sqlalchemy.orm import Session
@@ -18,7 +18,8 @@ def load_scenarios():
                     "task_id": data["scenario_id"],
                     "title": data.get("title", data["scenario_id"]),
                     "kind": data.get("kind", "attack"),
-                    "category": data.get("category", "unknown")
+                    "category": data.get("category", "unknown"),
+                    "severity": data.get("severity", "LOW")
                 })
     return scenarios
 
@@ -54,6 +55,8 @@ def get_compare_metrics(db: Session):
         
     attack_violated_none_n = 0
     attack_violated_none_m = 0
+    attack_violated_hardening_n = 0
+    attack_violated_hardening_m = 0
     attack_violated_gateway_n = 0
     attack_violated_gateway_m = 0
     attack_prevented = 0
@@ -61,9 +64,13 @@ def get_compare_metrics(db: Session):
     
     benign_held_none_n = 0
     benign_held_none_m = 0
+    benign_held_hardening_n = 0
+    benign_held_hardening_m = 0
     benign_held_gateway_n = 0
     benign_held_gateway_m = 0
     
+    benign_task_completed_hardening_n = 0
+    benign_task_completed_hardening_m = 0
     benign_task_completed_gateway_n = 0
     benign_task_completed_gateway_m = 0
     
@@ -89,9 +96,15 @@ def get_compare_metrics(db: Session):
         cat = sc["category"]
         
         if kind == "attack" and cat not in by_category:
-            by_category[cat] = {"violated_none": 0, "violated_gateway": 0, "total": 0}
+            by_category[cat] = {
+                "violated_none": 0,
+                "violated_hardening": 0,
+                "violated_gateway": 0,
+                "total": 0
+            }
             
         none_tup = selected_trials.get((tid, "none"))
+        hd_tup = selected_trials.get((tid, "hardening"))
         gw_tup = selected_trials.get((tid, "gateway"))
         
         if kind == "attack":
@@ -110,6 +123,31 @@ def get_compare_metrics(db: Session):
                 benign_held_none_m += 1
                 if ev.verdict == "held":
                     benign_held_none_n += 1
+                    
+        hd_data = None
+        if hd_tup:
+            t, ev = hd_tup
+            result_json = json.loads(ev.result_json) if ev.result_json else {}
+            task_comp = result_json.get("task_completed", False)
+            fb = result_json.get("false_blocks", 0)
+            hd_data = {
+                "trial_id": t.trial_id,
+                "verdict": ev.verdict,
+                "task_completed": task_comp,
+                "false_blocks": fb
+            }
+            if kind == "attack":
+                attack_violated_hardening_m += 1
+                if ev.verdict == "violated":
+                    attack_violated_hardening_n += 1
+                    by_category[cat]["violated_hardening"] += 1
+            else:
+                benign_held_hardening_m += 1
+                benign_task_completed_hardening_m += 1
+                if task_comp:
+                    benign_task_completed_hardening_n += 1
+                if ev.verdict == "held":
+                    benign_held_hardening_n += 1
         
         gw_data = None
         if gw_tup:
@@ -126,12 +164,10 @@ def get_compare_metrics(db: Session):
                     decision = payload.get("decision")
                     rule_id = payload.get("rule_id")
                     
-                    # 1. Primary rule_id of blocked gateway_decision events (one per blocked call)
                     if decision == "blocked" and rule_id:
                         blocked_rules.add(rule_id)
                         block_counts_by_rule[rule_id] += 1
                     
-                    # 2. Count of every rule id listed in result.violations across all gateway_decision events
                     res = payload.get("result", {})
                     vios = res.get("violations", []) if res else []
                     for v in vios:
@@ -190,7 +226,9 @@ def get_compare_metrics(db: Session):
             "title": sc["title"],
             "kind": kind,
             "category": cat,
+            "severity": sc.get("severity", "LOW"),
             "none": none_data,
+            "hardening": hd_data,
             "gateway": gw_data,
             "change": change
         })
@@ -209,11 +247,14 @@ def get_compare_metrics(db: Session):
         "excluded_failed": excluded_failed,
         "excluded_inconclusive": excluded_inconclusive,
         "attack_violated_none": {"n": attack_violated_none_n, "m": attack_violated_none_m},
+        "attack_violated_hardening": {"n": attack_violated_hardening_n, "m": attack_violated_hardening_m},
         "attack_violated_gateway": {"n": attack_violated_gateway_n, "m": attack_violated_gateway_m},
         "attack_prevented": attack_prevented,
         "attack_still_violated": attack_still_violated,
         "benign_held_none": {"n": benign_held_none_n, "m": benign_held_none_m},
+        "benign_held_hardening": {"n": benign_held_hardening_n, "m": benign_held_hardening_m},
         "benign_held_gateway": {"n": benign_held_gateway_n, "m": benign_held_gateway_m},
+        "benign_task_completed_hardening": {"n": benign_task_completed_hardening_n, "m": benign_task_completed_hardening_m},
         "benign_task_completed_gateway": {"n": benign_task_completed_gateway_n, "m": benign_task_completed_gateway_m},
         "false_blocks_total": false_blocks_total,
         "false_block_rate": {"n": false_block_rate_n, "m": false_block_rate_m},
@@ -227,4 +268,98 @@ def get_compare_metrics(db: Session):
         },
         "per_scenario": per_scenario,
         "incomplete_scenarios": incomplete_scenarios
+    }
+
+
+def compute_regression_diff(
+    db: Session,
+    defense_a: str = "none",
+    defense_b: str = "gateway",
+    rerun: bool = False,
+) -> dict:
+    """Compare two defense versions across all scenarios, labeling each as fixed, still_violated, newly_violated, or held."""
+    from app.agent.tasks import list_tasks
+    from app.orchestrator import execute_run
+    
+    tasks = list_tasks()
+    
+    if rerun:
+        for t in tasks:
+            execute_run(db, t.task_id, defense_a)
+            execute_run(db, t.task_id, defense_b)
+            
+    trials_q = db.execute(select(TrialRow, RunRow).join(RunRow, TrialRow.run_id == RunRow.run_id)).all()
+    grouped = defaultdict(list)
+    for t_row, r_row in trials_q:
+        if t_row.status != "completed":
+            continue
+        ev_row = db.execute(select(EvaluationRow).where(EvaluationRow.trial_id == t_row.trial_id)).scalar()
+        if not ev_row or ev_row.verdict == "inconclusive":
+            continue
+        grouped[(r_row.task_id, r_row.defense)].append((t_row, ev_row))
+        
+    for k, lst in grouped.items():
+        lst.sort(key=lambda x: (x[0].started_at, x[0].trial_id), reverse=True)
+        
+    diffs = []
+    fixed = []
+    still_violated = []
+    newly_violated = []
+    held = []
+    incomplete = []
+    
+    for t in tasks:
+        tid = t.task_id
+        tup_a = grouped.get((tid, defense_a), [None])[0]
+        tup_b = grouped.get((tid, defense_b), [None])[0]
+        
+        verdict_a = tup_a[1].verdict if tup_a else None
+        verdict_b = tup_b[1].verdict if tup_b else None
+        
+        status = "incomplete"
+        if verdict_a and verdict_b:
+            if verdict_a == "violated" and verdict_b == "held":
+                status = "fixed"
+                fixed.append(tid)
+            elif verdict_a == "violated" and verdict_b == "violated":
+                status = "still_violated"
+                still_violated.append(tid)
+            elif verdict_a == "held" and verdict_b == "violated":
+                status = "newly_violated"
+                newly_violated.append(tid)
+            elif verdict_a == "held" and verdict_b == "held":
+                status = "held"
+                held.append(tid)
+        else:
+            incomplete.append(tid)
+            
+        diffs.append({
+            "task_id": tid,
+            "title": t.title,
+            "kind": t.kind,
+            "category": t.category,
+            "severity": t.severity,
+            "defense_a": defense_a,
+            "verdict_a": verdict_a,
+            "defense_b": defense_b,
+            "verdict_b": verdict_b,
+            "status": status,
+        })
+        
+    return {
+        "defense_a": defense_a,
+        "defense_b": defense_b,
+        "summary": {
+            "total": len(tasks),
+            "fixed": len(fixed),
+            "still_violated": len(still_violated),
+            "newly_violated": len(newly_violated),
+            "held": len(held),
+            "incomplete": len(incomplete),
+        },
+        "fixed_task_ids": fixed,
+        "still_violated_task_ids": still_violated,
+        "newly_violated_task_ids": newly_violated,
+        "held_task_ids": held,
+        "diffs": diffs,
     }

@@ -88,18 +88,24 @@ def load_scenarios(force_reload: bool = False) -> dict[str, TaskSpec]:
                 "content": _resolve_canary(doc.content)
             }
 
-        plan = [
-            TaskPlanStep(tool=s.tool, arguments=s.arguments, source=s.source)
-            for s in scenario.plan
-        ]
+        plan = []
+        for s in scenario.plan:
+            resolved_args = {}
+            for k, v in s.arguments.items():
+                if isinstance(v, str):
+                    resolved_args[k] = _resolve_canary(v)
+                else:
+                    resolved_args[k] = v
+            plan.append(TaskPlanStep(tool=s.tool, arguments=resolved_args, source=s.source))
 
         spec = TaskSpec(
             task_id=scenario.scenario_id,
             title=scenario.title,
             kind=scenario.kind,
             category=scenario.category,
+            severity=scenario.severity,
             description=scenario.description,
-            user_prompt=scenario.user_prompt,
+            user_prompt=_resolve_canary(scenario.user_prompt),
             plan=plan,
             permitted_tools=scenario.permissions.permitted_tools,
             permitted_recipients=scenario.permissions.permitted_recipients,
@@ -111,3 +117,8 @@ def load_scenarios(force_reload: bool = False) -> dict[str, TaskSpec]:
 
     _SCENARIO_CACHE = cache
     return cache
+
+
+def register_transient_task(task: TaskSpec) -> None:
+    cache = load_scenarios()
+    cache[task.task_id] = task

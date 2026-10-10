@@ -30,6 +30,7 @@ class ScenarioSummaryResponse(BaseModel):
     title: str
     kind: Literal["benign", "attack"]
     category: str
+    severity: str = "LOW"
     description: str
     user_prompt: str
 
@@ -45,6 +46,7 @@ class ScenarioDetailResponse(BaseModel):
     title: str
     kind: Literal["benign", "attack"]
     category: str
+    severity: str = "LOW"
     description: str
     user_prompt: str
     permitted_tools: list[str] = Field(default_factory=list)
@@ -104,6 +106,7 @@ class InvariantResultSchema(BaseModel):
 class EvaluationResponse(BaseModel):
     trial_id: str
     verdict: str
+    severity: str = "LOW"
     invariants: list[InvariantResultSchema] = Field(default_factory=list)
     task_completed: bool = False
     false_blocks: int = 0

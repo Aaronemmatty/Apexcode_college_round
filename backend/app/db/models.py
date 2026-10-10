@@ -91,3 +91,18 @@ class ReplayRow(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
+
+
+class CampaignRow(Base):
+    __tablename__ = "campaigns"
+
+    campaign_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    defense: Mapped[str] = mapped_column(String(32), nullable=False, default="gateway")
+    budget: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+    seed: Mapped[int] = mapped_column(Integer, nullable=False, default=42)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="completed")
+    bypasses_found: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )

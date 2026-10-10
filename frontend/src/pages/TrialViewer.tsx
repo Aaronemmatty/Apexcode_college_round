@@ -3,6 +3,7 @@ import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useAsync, getTrace, getEvaluation, listRuns, replayTrial } from '../api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { SeverityBadge } from '@/components/ui/severity-badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -66,8 +67,9 @@ function EventCard({ event, evidenceEventIds }: { event: TraceEvent, evidenceEve
   const isSensitive = event.type === 'sensitive_data_detected';
   
   let borderClass = 'border-slate-800';
-  if (isBlockedGateway) borderClass = 'border-l-4 border-l-red-500 border-y-slate-800 border-r-slate-800';
-  if (isSensitive) borderClass = 'border-l-4 border-l-amber-500 border-y-slate-800 border-r-slate-800';
+  if (isEvidence) borderClass = 'border-2 border-red-500 bg-red-950/20 ring-2 ring-red-500/20';
+  else if (isBlockedGateway) borderClass = 'border-l-4 border-l-red-500 border-y-slate-800 border-r-slate-800';
+  else if (isSensitive) borderClass = 'border-l-4 border-l-amber-500 border-y-slate-800 border-r-slate-800';
 
   return (
     <div id={event.event_id} className={`bg-slate-900 rounded-md border p-4 shadow-sm scroll-mt-24 ${borderClass}`}>
@@ -95,8 +97,17 @@ function EventCard({ event, evidenceEventIds }: { event: TraceEvent, evidenceEve
           <Badge variant="outline" className="bg-slate-800 text-slate-300 border-slate-700">Tool: {event.tool}</Badge>
         )}
         {event.source && (
-          <Badge variant="outline" className={`border-slate-700 ${event.source !== 'user_task' ? 'bg-orange-950/50 text-orange-400 border-orange-900' : 'bg-slate-800 text-slate-300'}`}>
-            Source: {event.source}
+          <Badge
+            variant="outline"
+            className={`font-mono text-xs ${
+              event.source === 'untrusted_document'
+                ? 'bg-red-950/60 text-red-300 border-red-700 font-semibold'
+                : event.source === 'user_prompt_injection'
+                ? 'bg-amber-950/60 text-amber-300 border-amber-700'
+                : 'bg-blue-950/40 text-blue-300 border-blue-800/60'
+            }`}
+          >
+            {event.source === 'untrusted_document' ? 'Document Directive (Injected)' : event.source === 'user_prompt_injection' ? 'Prompt Injection' : 'User Task (Trusted)'}
           </Badge>
         )}
         {event.decision && (
@@ -327,6 +338,7 @@ export default function TrialViewer() {
                 <Badge variant="outline" className="border-slate-700 bg-slate-800 text-slate-300">
                   {runContext ? runContext.defense : "Unknown defense"}
                 </Badge>
+                {evaluation.severity && <SeverityBadge severity={evaluation.severity} />}
                 {getVerdictBadge(evaluation.verdict)}
               </div>
             </div>
@@ -418,10 +430,20 @@ export default function TrialViewer() {
         </div>
 
         <div className="flex-1 w-full space-y-8">
-          {steps.map(stepNum => (
+          {steps.map(stepNum => {
+            const stepEvts = groupedEvents.get(stepNum)!;
+            const hasStepViolation = stepEvts.some(e => evidenceEventIds.has(e.event_id));
+            return (
             <div key={stepNum} className="relative">
-              <div className="sticky top-0 z-10 bg-slate-950/80 backdrop-blur border-b border-slate-800 py-2 mb-4 pl-4 font-semibold text-slate-300">
-                Step {stepNum}
+              <div className={`sticky top-0 z-10 backdrop-blur border-b py-2 mb-4 pl-4 font-semibold flex items-center justify-between ${
+                hasStepViolation ? 'bg-red-950/80 border-red-800 text-red-300' : 'bg-slate-950/80 border-slate-800 text-slate-300'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <span>Step {stepNum}</span>
+                  {hasStepViolation && (
+                    <Badge className="bg-red-900 text-red-200 text-[10px] animate-pulse">VIOLATION OCCURRED IN THIS STEP</Badge>
+                  )}
+                </div>
               </div>
               <div className="space-y-4 pl-6 border-l-2 border-slate-800 ml-6">
                 {groupedEvents.get(stepNum)!.map(event => (
@@ -432,7 +454,7 @@ export default function TrialViewer() {
                 ))}
               </div>
             </div>
-          ))}
+          ); })}
         </div>
       </div>
     </div>

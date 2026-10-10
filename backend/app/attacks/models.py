@@ -24,6 +24,7 @@ class ScenarioExpectedDefense(BaseModel):
 class ScenarioExpected(BaseModel):
     none: ScenarioExpectedDefense
     gateway: ScenarioExpectedDefense
+    hardening: Optional[ScenarioExpectedDefense] = None
 
 class ScenarioDocument(BaseModel):
     title: str
@@ -34,6 +35,7 @@ class ScenarioDef(BaseModel):
     title: str
     kind: Literal["attack", "benign"]
     category: str
+    severity: Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"] = "LOW"
     description: str
     user_prompt: str
     plan: list[ScenarioPlanStep]

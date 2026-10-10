@@ -21,6 +21,7 @@ class TaskSpec(BaseModel):
     kind: Literal["benign", "attack"]
     description: str = ""
     category: str = ""
+    severity: Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"] = "LOW"
     documents: dict[str, dict[str, str]] = Field(default_factory=dict)
     max_customer_records: int | None = None
     expected: dict | None = None

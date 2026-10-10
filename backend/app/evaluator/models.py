@@ -5,6 +5,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
+class Severity(str, Enum):
+    CRITICAL = "CRITICAL"
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+
+
 class Verdict(str, Enum):
     VIOLATED = "violated"
     HELD = "held"
@@ -25,6 +32,7 @@ class InvariantResult(BaseModel):
 class Evaluation(BaseModel):
     trial_id: str
     verdict: Verdict
+    severity: Severity = Severity.LOW
     invariants: list[InvariantResult] = Field(default_factory=list)
     task_completed: bool = False
     false_blocks: int = 0

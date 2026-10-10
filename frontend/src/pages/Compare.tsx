@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { useAsync, getCompare, runReplayAll, downloadReport } from '../api/client';
+import { useAsync, getCompare, runReplayAll, downloadReport, runRegressionDiff } from '../api/client';
+import type { RegressionDiffResponse } from '../types/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { SeverityBadge } from '@/components/ui/severity-badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, RefreshCw, Download, Play } from 'lucide-react';
+import { AlertCircle, RefreshCw, Download, Play, GitCompare, ShieldCheck, CheckCircle2, XCircle, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { RunMatrixLauncher } from '../components/RunMatrixLauncher';
@@ -17,6 +19,14 @@ export default function Compare() {
   const [replayResult, setReplayResult] = useState<string | null>(null);
   const [replayError, setReplayError] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  // Regression Diff state
+  const [diffDefenseA, setDiffDefenseA] = useState<string>('none');
+  const [diffDefenseB, setDiffDefenseB] = useState<string>('gateway');
+  const [runningDiff, setRunningDiff] = useState(false);
+  const [diffResult, setDiffResult] = useState<RegressionDiffResponse | null>(null);
+  const [diffFilter, setDiffFilter] = useState<'all' | 'fixed' | 'still_violated' | 'newly_violated' | 'held'>('all');
+  const [diffError, setDiffError] = useState<string | null>(null);
 
   if (error) {
     return (
@@ -42,11 +52,10 @@ export default function Compare() {
     );
   }
 
-
-
   const chartData = Object.entries(data.by_category).map(([cat, stat]) => ({
     category: cat,
     'No defense': stat.violated_none,
+    'Hardening': stat.violated_hardening ?? 0,
     'Gateway': stat.violated_gateway
   }));
 
@@ -62,6 +71,20 @@ export default function Compare() {
       setReplayError(e?.message || 'Failed to run replays');
     } finally {
       setReplaying(false);
+    }
+  };
+
+  const handleRunRegressionDiff = async () => {
+    setRunningDiff(true);
+    setDiffError(null);
+    try {
+      const res = await runRegressionDiff(diffDefenseA, diffDefenseB, true);
+      setDiffResult(res);
+      reload();
+    } catch (e: any) {
+      setDiffError(e?.message || 'Failed to execute regression diff');
+    } finally {
+      setRunningDiff(false);
     }
   };
 
@@ -82,12 +105,19 @@ export default function Compare() {
     return true;
   });
 
+  const filteredDiffs = diffResult ? diffResult.diffs.filter(d => {
+    if (diffFilter === 'all') return true;
+    return d.status === diffFilter;
+  }) : [];
+
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 min-w-0">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl sm:text-4xl font-bold text-white tracking-tight">Compare</h1>
-          <p className="text-slate-400 mt-2 text-sm sm:text-base">Evaluate defense efficacy against attack scenarios.</p>
+          <p className="text-slate-400 mt-2 text-sm sm:text-base">
+            Evaluate defense efficacy across None, Prompt Hardening, and Security Gateway.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button onClick={() => handleExport('json')} variant="outline" className="border-slate-700 hover:bg-slate-800">
@@ -117,98 +147,304 @@ export default function Compare() {
          </Button>
          {replayResult && <span className="text-sm text-slate-400 self-center">{replayResult}</span>}
          {replayError && (
-           <div role="alert" className="text-sm text-red-400 bg-red-950/40 border border-red-900/50 rounded-md px-3 py-1.5 flex items-center gap-2">
-             <AlertCircle className="w-4 h-4 shrink-0" />
-             <span>{replayError}</span>
-           </div>
+            <span role="alert" className="text-sm text-red-400 self-center flex items-center gap-1">
+              <AlertCircle className="w-4 h-4" />
+              {replayError}
+            </span>
          )}
       </div>
 
+      {/* Headline Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Attacks violated, no defense</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-400">
+            <CardDescription className="text-slate-400 font-medium">Attack Violated (No Defense)</CardDescription>
+            <CardTitle className="text-2xl font-bold text-red-400">
               {formatRate(data.attack_violated_none.n, data.attack_violated_none.m)}
-            </div>
-          </CardContent>
+            </CardTitle>
+          </CardHeader>
         </Card>
+
         <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Residual with gateway</CardTitle>
+            <CardDescription className="text-slate-400 font-medium">Residual with Hardening</CardDescription>
+            <CardTitle className="text-2xl font-bold text-amber-400">
+              {formatRate(data.attack_violated_hardening?.n || 0, data.attack_violated_hardening?.m || 0)}
+            </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-400">
+        </Card>
+
+        <Card className="bg-slate-900 border-slate-800 min-w-0">
+          <CardHeader className="pb-2">
+            <CardDescription className="text-slate-400 font-medium">Residual with Gateway</CardDescription>
+            <CardTitle className="text-2xl font-bold text-emerald-400">
               {formatRate(data.attack_violated_gateway.n, data.attack_violated_gateway.m)}
-            </div>
-          </CardContent>
+            </CardTitle>
+          </CardHeader>
         </Card>
+
         <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Attacks prevented</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-400">{data.attack_prevented}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-slate-900 border-slate-800 min-w-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Benign trials held</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-400">
+            <CardDescription className="text-slate-400 font-medium">Benign Held (Gateway)</CardDescription>
+            <CardTitle className="text-2xl font-bold text-slate-200">
               {formatRate(data.benign_held_gateway.n, data.benign_held_gateway.m)}
-            </div>
-          </CardContent>
+            </CardTitle>
+          </CardHeader>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="bg-slate-900 border-slate-800 min-w-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">Benign tasks completed (gateway)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-400">
-              {data.benign_task_completed_gateway.n} / {data.benign_task_completed_gateway.m}
+      {/* Regression Diff Card (Item B) */}
+      <Card className="bg-slate-900 border-purple-900/40 shadow-lg">
+        <CardHeader className="pb-3 border-b border-slate-800/80">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <GitCompare className="w-5 h-5 text-purple-400" />
+                <CardTitle className="text-lg text-white">Defense Regression Diff</CardTitle>
+              </div>
+              <CardDescription className="mt-1">
+                Run head-to-head rerun comparisons between two defense versions. Classifies every scenario as Fixed, Still Violated, Newly Violated, or Held.
+              </CardDescription>
             </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-slate-900 border-slate-800 min-w-0">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-400">False block rate (benign)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-400">
-              {formatRate(data.false_block_rate.n, data.false_block_rate.m)}
-            </div>
-            <p className="text-xs text-slate-500 mt-1">{data.false_blocks_total} total false blocks</p>
-          </CardContent>
-        </Card>
-      </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1.5 rounded border border-slate-800 text-xs">
+                <span className="text-slate-400">Version A:</span>
+                <select
+                  value={diffDefenseA}
+                  onChange={(e) => setDiffDefenseA(e.target.value)}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+                >
+                  <option value="none" className="bg-slate-900">None</option>
+                  <option value="hardening" className="bg-slate-900">Prompt Hardening</option>
+                  <option value="gateway" className="bg-slate-900">Security Gateway</option>
+                </select>
+              </div>
 
+              <ArrowRight className="w-4 h-4 text-slate-500 hidden sm:block" />
+
+              <div className="flex items-center gap-1.5 bg-slate-950 px-2.5 py-1.5 rounded border border-slate-800 text-xs">
+                <span className="text-slate-400">Version B:</span>
+                <select
+                  value={diffDefenseB}
+                  onChange={(e) => setDiffDefenseB(e.target.value)}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+                >
+                  <option value="gateway" className="bg-slate-900">Security Gateway</option>
+                  <option value="hardening" className="bg-slate-900">Prompt Hardening</option>
+                  <option value="none" className="bg-slate-900">None</option>
+                </select>
+              </div>
+
+              <Button
+                onClick={handleRunRegressionDiff}
+                disabled={runningDiff}
+                className="bg-purple-600 hover:bg-purple-500 text-white text-xs h-8 px-3"
+              >
+                {runningDiff ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    Rerunning Matrix...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3.5 h-3.5 mr-1.5" />
+                    Rerun All & Compare
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-4 space-y-4">
+          {diffError && (
+            <div className="bg-red-950/40 border border-red-900/60 p-3 rounded text-sm text-red-400 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              <span>{diffError}</span>
+            </div>
+          )}
+
+          {diffResult ? (
+            <div className="space-y-4">
+              {/* Summary Stats Badges */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 bg-emerald-950/20 border border-emerald-900/40 rounded-lg">
+                  <div className="text-xs font-semibold uppercase text-emerald-400 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Fixed
+                  </div>
+                  <div className="text-2xl font-bold text-emerald-300 mt-1">
+                    {diffResult.summary.fixed}
+                  </div>
+                  <div className="text-[11px] text-slate-400">Violated in A → Held in B</div>
+                </div>
+
+                <div className="p-3 bg-amber-950/20 border border-amber-900/40 rounded-lg">
+                  <div className="text-xs font-semibold uppercase text-amber-400 flex items-center gap-1.5">
+                    <AlertCircle className="w-3.5 h-3.5" /> Still Violated
+                  </div>
+                  <div className="text-2xl font-bold text-amber-300 mt-1">
+                    {diffResult.summary.still_violated}
+                  </div>
+                  <div className="text-[11px] text-slate-400">Violated in both versions</div>
+                </div>
+
+                <div className="p-3 bg-red-950/20 border border-red-900/40 rounded-lg">
+                  <div className="text-xs font-semibold uppercase text-red-400 flex items-center gap-1.5">
+                    <XCircle className="w-3.5 h-3.5" /> Newly Violated
+                  </div>
+                  <div className="text-2xl font-bold text-red-300 mt-1">
+                    {diffResult.summary.newly_violated}
+                  </div>
+                  <div className="text-[11px] text-slate-400">Regression! Held in A → Violated in B</div>
+                </div>
+
+                <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-lg">
+                  <div className="text-xs font-semibold uppercase text-slate-400 flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5" /> Consistently Held
+                  </div>
+                  <div className="text-2xl font-bold text-slate-200 mt-1">
+                    {diffResult.summary.held}
+                  </div>
+                  <div className="text-[11px] text-slate-400">Held in both versions</div>
+                </div>
+              </div>
+
+              {/* Filter Tabs & Table */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+                <span className="text-xs text-slate-400">
+                  Showing {filteredDiffs.length} of {diffResult.summary.total} scenarios:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <Button
+                    variant={diffFilter === 'all' ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-7 text-xs px-2.5"
+                    onClick={() => setDiffFilter('all')}
+                  >
+                    All ({diffResult.summary.total})
+                  </Button>
+                  <Button
+                    variant={diffFilter === 'fixed' ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-7 text-xs px-2.5 text-emerald-400"
+                    onClick={() => setDiffFilter('fixed')}
+                  >
+                    Fixed ({diffResult.summary.fixed})
+                  </Button>
+                  <Button
+                    variant={diffFilter === 'still_violated' ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-7 text-xs px-2.5 text-amber-400"
+                    onClick={() => setDiffFilter('still_violated')}
+                  >
+                    Still Violated ({diffResult.summary.still_violated})
+                  </Button>
+                  {diffResult.summary.newly_violated > 0 && (
+                    <Button
+                      variant={diffFilter === 'newly_violated' ? 'default' : 'outline'}
+                      size="sm"
+                      className="h-7 text-xs px-2.5 text-red-400"
+                      onClick={() => setDiffFilter('newly_violated')}
+                    >
+                      Newly Violated ({diffResult.summary.newly_violated})
+                    </Button>
+                  )}
+                  <Button
+                    variant={diffFilter === 'held' ? 'default' : 'outline'}
+                    size="sm"
+                    className="h-7 text-xs px-2.5 text-slate-300"
+                    onClick={() => setDiffFilter('held')}
+                  >
+                    Held ({diffResult.summary.held})
+                  </Button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="text-[11px] text-slate-400 uppercase bg-slate-950 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2">Scenario</th>
+                      <th className="px-3 py-2">{diffResult.defense_a}</th>
+                      <th className="px-3 py-2">{diffResult.defense_b}</th>
+                      <th className="px-3 py-2">Regression Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredDiffs.map(d => (
+                      <tr key={d.task_id} className="border-b border-slate-800/80 hover:bg-slate-800/40">
+                        <td className="px-3 py-2">
+                          <div className="font-medium text-slate-200">{d.title}</div>
+                          <div className="text-[10px] text-slate-500 font-mono">{d.task_id}</div>
+                        </td>
+                        <td className="px-3 py-2">
+                          <Badge
+                            variant={d.verdict_a === 'violated' ? 'destructive' : 'default'}
+                            className={`text-[10px] ${d.verdict_a === 'held' ? 'bg-emerald-500/20 text-emerald-400' : ''}`}
+                          >
+                            {d.verdict_a || 'none'}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2">
+                          <Badge
+                            variant={d.verdict_b === 'violated' ? 'destructive' : 'default'}
+                            className={`text-[10px] ${d.verdict_b === 'held' ? 'bg-emerald-500/20 text-emerald-400' : ''}`}
+                          >
+                            {d.verdict_b || 'none'}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-2">
+                          {d.status === 'fixed' && (
+                            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">
+                              FIXED
+                            </Badge>
+                          )}
+                          {d.status === 'still_violated' && (
+                            <Badge variant="destructive" className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px]">
+                              STILL VIOLATED
+                            </Badge>
+                          )}
+                          {d.status === 'newly_violated' && (
+                            <Badge variant="destructive" className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px]">
+                              NEWLY VIOLATED
+                            </Badge>
+                          )}
+                          {d.status === 'held' && (
+                            <span className="text-slate-400 font-mono text-[11px]">HELD</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-6 text-slate-400 text-sm">
+              <p>Click <strong className="text-purple-300">"Rerun All & Compare"</strong> above to execute a live regression comparison matrix between {diffDefenseA} and {diffDefenseB}.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Category Chart and Replay Status */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 bg-slate-900 border-slate-800 min-w-0">
+        <Card className="bg-slate-900 border-slate-800 lg:col-span-2 min-w-0">
           <CardHeader>
-            <CardTitle>Violation Rates by Attack Category</CardTitle>
-            <CardDescription>Number of violated invariant trials per category</CardDescription>
+            <CardTitle>Attacks Violated by Category</CardTitle>
+            <CardDescription>Comparison across No Defense, Prompt Hardening, and Security Gateway</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-72 w-full min-w-0">
+            <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="category" stroke="#94a3b8" />
-                  <YAxis stroke="#94a3b8" allowDecimals={false} />
-                  <RechartsTooltip 
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }}
-                    itemStyle={{ color: '#e2e8f0' }}
-                  />
-                  <Legend />
+                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                  <XAxis dataKey="category" stroke="#64748b" fontSize={11} angle={-15} textAnchor="end" />
+                  <YAxis stroke="#64748b" fontSize={12} allowDecimals={false} />
+                  <RechartsTooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }} />
+                  <Legend wrapperStyle={{ paddingTop: '10px' }} />
                   <Bar dataKey="No defense" fill="#f87171" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Gateway" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Hardening" fill="#fbbf24" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Gateway" fill="#34d399" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -217,10 +453,11 @@ export default function Compare() {
 
         <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader>
-            <CardTitle>Replay consistency</CardTitle>
+            <CardTitle>Replay Consistency</CardTitle>
+            <CardDescription>Deterministic trace replay verification</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-4 text-sm">
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                 <span className="text-slate-400">Consistent replays</span>
                 <span className="font-bold text-white">{data.replay.consistent}</span>
@@ -238,13 +475,14 @@ export default function Compare() {
         </Card>
       </div>
 
+      {/* Per-Scenario Comparison Table (None vs Hardening vs Gateway) */}
       <Card className="bg-slate-900 border-slate-800 min-w-0">
         <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <CardTitle>Per-Scenario Comparison</CardTitle>
+            <CardTitle>Per-Scenario Comparison (All Defenses)</CardTitle>
             <CardDescription>
-              Details of the newest completed trial for each scenario and defense.
-              {data.incomplete_scenarios > 0 && ` (${data.incomplete_scenarios} incomplete scenarios hidden or marked)`}
+              Side-by-side evaluation across None, Prompt Hardening, and Security Gateway.
+              {data.incomplete_scenarios > 0 && ` (${data.incomplete_scenarios} incomplete scenarios marked)`}
             </CardDescription>
             <p className="text-xs text-slate-500 mt-1">
               Excluded trials: {data.excluded_failed} failed, {data.excluded_inconclusive} inconclusive.
@@ -264,15 +502,16 @@ export default function Compare() {
                 <tr>
                   <th className="px-4 py-3 rounded-tl-lg">Scenario</th>
                   <th className="px-4 py-3">No defense</th>
-                  <th className="px-4 py-3">Gateway</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 rounded-tr-lg">Blocked Rules</th>
+                  <th className="px-4 py-3">Prompt Hardening</th>
+                  <th className="px-4 py-3">Security Gateway</th>
+                  <th className="px-4 py-3">Gateway Efficacy</th>
+                  <th className="px-4 py-3 rounded-tr-lg">Blocked Rules (GW)</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredRows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                    <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
                       No matching scenarios found.
                     </td>
                   </tr>
@@ -282,9 +521,12 @@ export default function Compare() {
                       <td className="px-4 py-3">
                         <div className="font-medium text-slate-200">{r.title}</div>
                         <div className="text-xs text-slate-500 font-mono mt-0.5">{r.task_id}</div>
-                        <Badge variant="outline" className="mt-1 text-[10px] uppercase bg-slate-950">
-                          {r.kind}
-                        </Badge>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <Badge variant="outline" className="text-[10px] uppercase bg-slate-950">
+                            {r.kind}
+                          </Badge>
+                          <SeverityBadge severity={r.severity} />
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         {r.none ? (
@@ -298,6 +540,18 @@ export default function Compare() {
                         ) : <span className="text-slate-500">-</span>}
                       </td>
                       <td className="px-4 py-3">
+                        {r.hardening ? (
+                          <div className="flex flex-col gap-1">
+                            <Link to={`/trials/${r.hardening.trial_id}`} className="hover:underline inline-block w-fit">
+                              <Badge variant={r.hardening.verdict === 'violated' ? 'destructive' : 'default'} className={r.hardening.verdict === 'held' ? 'bg-emerald-500/20 text-emerald-400' : ''}>
+                                {r.hardening.verdict}
+                              </Badge>
+                            </Link>
+                            {r.hardening.task_completed && <span className="text-[10px] text-emerald-400">Completed</span>}
+                          </div>
+                        ) : <span className="text-slate-500">-</span>}
+                      </td>
+                      <td className="px-4 py-3">
                         {r.gateway ? (
                           <div className="flex flex-col gap-1">
                             <Link to={`/trials/${r.gateway.trial_id}`} className="hover:underline inline-block w-fit">
@@ -305,7 +559,7 @@ export default function Compare() {
                                 {r.gateway.verdict}
                               </Badge>
                             </Link>
-                            {r.gateway.task_completed && <span className="text-[10px] text-emerald-400">Task completed</span>}
+                            {r.gateway.task_completed && <span className="text-[10px] text-emerald-400">Completed</span>}
                           </div>
                         ) : <span className="text-slate-500">-</span>}
                       </td>
@@ -327,6 +581,7 @@ export default function Compare() {
         </CardContent>
       </Card>
 
+      {/* Block Counts by Rule */}
       <Card className="bg-slate-900 border-slate-800 min-w-0">
          <CardHeader>
             <CardTitle>Block counts by rule</CardTitle>

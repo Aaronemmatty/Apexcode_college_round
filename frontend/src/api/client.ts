@@ -5,7 +5,9 @@ import type {
   Run,
   TraceResponse,
   ReplayResponse,
-  CompareMetrics
+  CompareMetrics,
+  CampaignResult,
+  RegressionDiffResponse
 } from '../types/api';
 import { ApiError } from '../types/api';
 import type { Evaluation } from '../types/evaluation';
@@ -113,3 +115,41 @@ export function useAsync<T>(asyncFn: () => Promise<T>, dependencies: any[] = [])
 
   return { data, error, loading, reload: execute };
 }
+
+export const startCampaign = (body: { budget: number; seed: number; defense: string; seed_scenarios?: string[] }) =>
+  fetchApi<CampaignResult>('/api/campaigns', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const listCampaigns = () =>
+  fetchApi<Array<{ campaign_id: string; defense: string; budget: number; seed: number; status: string; trials_executed: number; bypasses_found: number; created_at: string }>>('/api/campaigns');
+
+export const getCampaign = (campaignId: string) =>
+  fetchApi<CampaignResult>(`/api/campaigns/${campaignId}`);
+
+
+export const executeCustomAttack = (body: { payload: string; defense: string; seed?: number; title?: string }) =>
+  fetchApi<{
+    task_id: string;
+    run_id: string;
+    trial_id: string;
+    verdict: 'held' | 'violated' | 'inconclusive';
+    severity: string;
+    violated_invariants: string[];
+    task_completed: boolean;
+    false_blocks: number;
+    events: any[];
+  }>('/api/attacks/custom', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+export const runRegressionDiff = (defense_a: string = 'none', defense_b: string = 'gateway', rerun: boolean = true) =>
+  fetchApi<RegressionDiffResponse>('/api/compare/regression-diff', {
+    method: 'POST',
+    body: JSON.stringify({ defense_a, defense_b, rerun }),
+  });
+
+export const getRegressionDiff = (defense_a: string = 'none', defense_b: string = 'gateway') =>
+  fetchApi<RegressionDiffResponse>(`/api/compare/regression-diff?defense_a=${encodeURIComponent(defense_a)}&defense_b=${encodeURIComponent(defense_b)}`);
