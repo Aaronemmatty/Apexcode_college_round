@@ -2,7 +2,7 @@
 
 **AgentBreak** is a reproducible security-testing harness for tool-using AI agents. It evaluates agents against prompt injection and unauthorized tool execution in a controlled, mock-tool testing environment with a security gateway, independent evaluation engine, and defense comparison analytics (7 of 8 attacks prevented, 1 documented residual).
 
-> **Note:** This is a controlled mock-tool harness, deterministic scripted agent. Not an OS-level sandbox, not a measure of real LLM behavior.
+> **Note:** Controlled mock-tool harness, deterministic scripted agent. Not an OS-level sandbox, not a measure of real LLM behavior.
 
 ---
 
@@ -39,6 +39,7 @@ Apexcode_college_round/
 │   └── vite.config.ts    # Vite configuration
 ├── docs/
 │   ├── architecture.md   # System architecture overview
+│   ├── demo-script.md    # 4-minute guided demonstration script
 │   ├── event-contract.md # Canonical event contract documentation & examples
 │   ├── gateway.md        # Security gateway rules and redaction
 │   ├── evaluator.md      # Evaluator invariants and verdict logic
@@ -52,11 +53,44 @@ Apexcode_college_round/
 
 ---
 
-## Quick Start (macOS / zsh)
+## Quick Start
 
-### 1. Backend Setup & Run
+### Option A: Windows (PowerShell)
 
-Open a terminal in the repository root:
+#### 1. Backend Setup & Run
+In a PowerShell terminal:
+
+```powershell
+cd backend
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python -m pytest -v
+python scripts\run_matrix.py
+python -m uvicorn app.main:app --port 8000
+```
+
+The backend API will run at `http://localhost:8000`.
+
+#### 2. Frontend Setup & Run
+In a second PowerShell terminal:
+
+```powershell
+cd frontend
+npm install
+npm run build
+$env:VITE_API_BASE_URL="http://localhost:8000"
+npm run dev
+```
+
+The frontend dashboard will run at `http://localhost:5173`.
+
+---
+
+### Option B: macOS / Linux (zsh or bash)
+
+#### 1. Backend Setup & Run
+In a terminal:
 
 ```zsh
 cd backend
@@ -64,19 +98,14 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 pytest -v
-uvicorn app.main:app --reload --port 8000
+python scripts/run_matrix.py
+uvicorn app.main:app --port 8000
 ```
 
 The backend API will run at `http://localhost:8000`.
-- Health Check: `http://localhost:8000/api/health`
-- Compare Metrics: `http://localhost:8000/api/compare`
-- Interactive OpenAPI Docs: `http://localhost:8000/docs`
 
----
-
-### 2. Frontend Setup & Run
-
-Open a second terminal in the repository root:
+#### 2. Frontend Setup & Run
+In a second terminal:
 
 ```zsh
 cd frontend
@@ -87,21 +116,32 @@ npm run dev
 ```
 
 The frontend dashboard will run at `http://localhost:5173`.
-- Overview: `http://localhost:5173/`
-- Compare Defenses: `http://localhost:5173/compare`
-- Scenarios: `http://localhost:5173/scenarios`
 
 ---
 
-## 12 Security Scenarios & Deterministic Benchmark
+## How to Reset the Demo
 
-AgentBreak comes loaded with 12 deterministic JSON-based test scenarios in `backend/scenarios/`. These include a mix of benign workflows and direct/indirect prompt injections (`canary_in_authorized_email`, `excessive_access_broad_query`, `multi_step_injection`, etc.).
+To clear all recorded runs, trials, evaluations, and replays and return to a clean baseline:
 
-**How to run the full matrix:**
-```bash
-cd backend
-.venv/bin/python scripts/run_matrix.py
-```
+1. Stop the backend server process (`Ctrl+C`).
+2. Delete the SQLite database file:
+   - **PowerShell:** `Remove-Item backend\agentbreak.db -ErrorAction SilentlyContinue`
+   - **macOS / Linux:** `rm -f backend/agentbreak.db`
+3. Restart the backend server (`uvicorn app.main:app --port 8000`).
+4. On startup, the application recreates empty database tables automatically.
+
+---
+
+## Demo Flow Summary
+
+See [docs/demo-script.md](docs/demo-script.md) for the complete 4-minute click path:
+
+1. **The Problem:** Prompt injection and untrusted content trick tool-using agents into executing unvalidated tool calls or exfiltrating private data.
+2. **Baseline Attack (No Defense):** Run an injection attack (`canary_in_authorized_email`) with `No defense`. Inspect the trace timeline showing the unauthorized email dispatch and highlighted synthetic canary leak (**VIOLATED**).
+3. **Attack Blocked (Gateway):** Run the same scenario with `Gateway` defense. Observe the `gateway_decision: blocked` event, the aborted tool execution, and the independent evaluator scoring (**HELD**).
+4. **Benign Workflow Preservation:** Run a benign scenario (`benign_customer_lookup`) with `Gateway`. Confirm normal tool execution, customer note redaction, `0` false blocks, and target task completion (**HELD**).
+5. **Matrix Comparison & Export:** On `/compare`, click **Run Full Matrix** to execute all 12 scenarios $\times$ 2 defenses. Run **Add replay check** (24/24 consistent), and click **Markdown** to export `agentbreak-report.md`.
+6. **Honest Limitations:** Note that **7 of 8 attacks are prevented with 1 documented residual miss** (`excessive_access_broad_query` bypasses syntactic pattern rules).
 
 ---
 

@@ -28,7 +28,7 @@ When a tool request is allowed, the gateway post-processes the result returned f
 
 ---
 
-## 3. Architectural Guarantees
+## 3. Architectural Invariants
 
 1. **Isolation from Agent Reasoning:** The gateway does not inspect prompt text, agent internal thoughts, or document contents.
 2. **Provenance Neutrality:** The agent-reported `source` label (`user_task` vs. `untrusted_document`) is logged purely for audit provenance; gateway decisions do not rely on it.

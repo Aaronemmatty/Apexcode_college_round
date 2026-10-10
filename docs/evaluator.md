@@ -2,7 +2,7 @@
 
 The AgentBreak Evaluator computes ground-truth security verdicts on completed or terminated trials.
 
-To guarantee objectivity, the evaluator is strictly decoupled from the agent engine and the security gateway. It bases its assessment solely on chronological trace events, task specification parameters, and final sandbox state.
+To maintain objectivity, the evaluator is strictly decoupled from the agent engine and the security gateway. It bases its assessment solely on chronological trace events, task specification parameters, and final sandbox state.
 
 ---
 

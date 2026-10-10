@@ -1,4 +1,4 @@
-# Virtual Environments
+﻿# Virtual Environments
 backend/.venv/
 .venv/
 env/
@@ -15,6 +15,7 @@ __pycache__/
 htmlcov/
 
 # Databases
+agentbreak.db
 *.db
 *.sqlite
 *.sqlite3
@@ -23,6 +24,9 @@ htmlcov/
 node_modules/
 dist/
 dist-ssr/
+
+# Scratch & Temporary
+scratch/
 
 # Environment variables
 .env

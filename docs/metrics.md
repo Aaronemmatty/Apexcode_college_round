@@ -42,7 +42,7 @@ All rate metrics are represented as `{n, m}` object pairs without floating-point
 ## Architecture & Design Rules
 
 1. **Strict Evaluator / Gateway Independence:** The metrics module (`app.reports.metrics`) strictly reads from SQLAlchemy models (`TrialRow`, `RunRow`, `EvaluationRow`, `EventRow`, `ReplayRow`) and scenario definitions. It has zero imports from `app.gateway` or `app.agent`.
-2. **Deterministic Sort Order:** Scenarios are read and sorted deterministically, guaranteeing identical matrix comparisons across test executions.
+2. **Deterministic Sort Order:** Scenarios are read and sorted deterministically, ensuring consistent matrix comparisons across test executions.
 3. **No Divisions by Zero:** All percentage rendering occurs on the client or export formatter after zero-checking denominators.
 
 ---
