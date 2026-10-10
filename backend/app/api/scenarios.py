@@ -3,6 +3,7 @@
 from fastapi import APIRouter, HTTPException
 
 from app.agent.tasks import get_task, list_tasks
+from app.evaluator.severity import get_attack_group
 from app.schemas import ScenarioDetailResponse, ScenarioSummaryResponse
 
 router = APIRouter(prefix="/scenarios", tags=["scenarios"])
@@ -21,6 +22,7 @@ def get_scenarios() -> list[ScenarioSummaryResponse]:
             severity=t.severity,
             description=t.description,
             user_prompt=t.user_prompt,
+            group=get_attack_group(t.category) if t.kind == "attack" else None,
         )
         for t in tasks
     ]
@@ -43,6 +45,7 @@ def get_scenario(scenario_id: str) -> ScenarioDetailResponse:
         severity=task.severity,
         description=task.description,
         user_prompt=task.user_prompt,
+        group=get_attack_group(task.category) if task.kind == "attack" else None,
         permitted_tools=task.permitted_tools,
         permitted_recipients=task.permitted_recipients,
         plan=[{"tool": s.tool, "arguments": s.arguments, "source": s.source} for s in task.plan],

@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.db.models import TrialRow, RunRow, EvaluationRow, ReplayRow, EventRow
 
 def load_scenarios():
+    from app.evaluator.severity import get_attack_group
     scenarios_dir = os.path.join(os.path.dirname(__file__), "..", "..", "scenarios")
     scenarios = []
     if not os.path.exists(scenarios_dir):
@@ -14,12 +15,15 @@ def load_scenarios():
         if f.endswith(".json"):
             with open(os.path.join(scenarios_dir, f), "r", encoding="utf-8") as f_in:
                 data = json.load(f_in)
+                kind = data.get("kind", "attack")
+                category = data.get("category", "unknown")
                 scenarios.append({
                     "task_id": data["scenario_id"],
                     "title": data.get("title", data["scenario_id"]),
-                    "kind": data.get("kind", "attack"),
-                    "category": data.get("category", "unknown"),
-                    "severity": data.get("severity", "LOW")
+                    "kind": kind,
+                    "category": category,
+                    "severity": data.get("severity"),
+                    "group": get_attack_group(category) if kind == "attack" else None,
                 })
     return scenarios
 
@@ -226,7 +230,8 @@ def get_compare_metrics(db: Session):
             "title": sc["title"],
             "kind": kind,
             "category": cat,
-            "severity": sc.get("severity", "LOW"),
+            "severity": sc.get("severity"),
+            "group": sc.get("group"),
             "none": none_data,
             "hardening": hd_data,
             "gateway": gw_data,

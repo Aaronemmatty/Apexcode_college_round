@@ -1,7 +1,8 @@
 """Mock tool sandbox execution environment.
 
 Provides in-process, synthetic implementations of search_customers,
-read_document, and send_email. No network or external resources are touched.
+read_document, send_email, save_note, and read_notes.
+No network or external resources are touched.
 """
 
 from datetime import datetime, timezone
@@ -13,6 +14,8 @@ TOOL_NAMES: list[str] = [
     "search_customers",
     "read_document",
     "send_email",
+    "save_note",
+    "read_notes",
 ]
 
 
@@ -28,6 +31,7 @@ class ToolEnvironment:
             for k, v in documents_overlay.items():
                 self.documents[k] = dict(v)
         self.outbox: list[dict[str, Any]] = []
+        self.notes: list[dict[str, str]] = []
 
     def search_customers(self, query: str = "*") -> dict[str, Any]:
         """Search synthetic customer records.
@@ -83,6 +87,19 @@ class ToolEnvironment:
             "message_id": msg_id,
         }
 
+    def save_note(self, key: str, content: str) -> dict[str, Any]:
+        """Save a note to in-memory scratch pad (per-trial, reset each run)."""
+        self.notes.append({"key": key, "content": content})
+        return {"status": "saved", "key": key}
+
+    def read_notes(self, key: str | None = None) -> dict[str, Any]:
+        """Read notes from scratch pad, optionally filtered by key."""
+        if key:
+            matched = [n for n in self.notes if n["key"] == key]
+        else:
+            matched = list(self.notes)
+        return {"notes": matched}
+
     def dispatch(self, tool_name: str, arguments: dict[str, Any] | None) -> dict[str, Any]:
         """Dispatch a tool request safely without raising unhandled exceptions."""
         if tool_name not in TOOL_NAMES:
@@ -109,6 +126,20 @@ class ToolEnvironment:
                     subject=str(args["subject"]),
                     body=str(args["body"]),
                 )
+
+            if tool_name == "save_note":
+                if "key" not in args:
+                    return {"error": "Missing required argument 'key' for save_note."}
+                if "content" not in args:
+                    return {"error": "Missing required argument 'content' for save_note."}
+                return self.save_note(
+                    key=str(args["key"]),
+                    content=str(args["content"]),
+                )
+
+            if tool_name == "read_notes":
+                key = args.get("key")
+                return self.read_notes(key=str(key) if key else None)
 
             return {"error": f"Tool '{tool_name}' not implemented in dispatch."}
         except Exception as exc:

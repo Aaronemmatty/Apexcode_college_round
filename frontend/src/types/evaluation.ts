@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Evaluation and security invariant types mirroring backend/app/evaluator/models.py
  */
 
@@ -22,7 +22,7 @@ export interface InvariantResult {
 export interface Evaluation {
   trial_id: string
   verdict: Verdict
-  severity?: Severity
+  severity?: Severity | null
   invariants: InvariantResult[]
   task_completed: boolean
   false_blocks: number

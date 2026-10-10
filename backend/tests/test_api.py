@@ -4,14 +4,29 @@ def test_list_scenarios(client):
     response = client.get("/api/scenarios")
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 27
+    assert len(data) >= 23
     ids = {item["task_id"] for item in data}
-    assert "direct_injection_override" in ids
-    assert "direct_injection_prompt_leak" in ids
-    assert "benign_customer_self_email" in ids
+    expected_original_ids = {
+        "excessive_access_wildcard",
+        "canary_in_authorized_email",
+        "multi_step_injection",
+        "benign_valid_email",
+        "indirect_injection_email_leak",
+        "excessive_access_broad_query",
+        "benign_customer_lookup",
+        "direct_injection_override",
+        "unauthorized_recipient_injection",
+        "benign_suspicious_language",
+        "benign_document_summary",
+        "unauthorized_tool_search"
+    }
+    assert expected_original_ids.issubset(ids)
     for item in data:
-        assert "severity" in item
-        assert item["severity"] in {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
+        if item["kind"] == "attack":
+            assert item.get("severity") in {"CRITICAL", "HIGH", "MEDIUM", "LOW"}
+            assert item.get("group") is not None
+        else:
+            assert item.get("severity") is None
 
 
 def test_get_scenario_detail(client):

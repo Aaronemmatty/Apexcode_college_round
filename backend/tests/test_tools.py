@@ -84,3 +84,50 @@ def test_tool_environments_do_not_share_state():
     env1.documents["doc_custom"] = {"title": "Custom", "content": "Custom text"}
     assert "doc_custom" in env1.documents
     assert "doc_custom" not in env2.documents
+
+
+def test_save_note_and_read_notes():
+    env = ToolEnvironment()
+    res = env.save_note(key="summary", content="A quick note")
+    assert res["status"] == "saved"
+    assert res["key"] == "summary"
+
+    notes = env.read_notes()
+    assert len(notes["notes"]) == 1
+    assert notes["notes"][0]["key"] == "summary"
+    assert notes["notes"][0]["content"] == "A quick note"
+
+    res2 = env.save_note(key="other", content="Another note")
+    assert res2["status"] == "saved"
+
+    filtered = env.read_notes(key="summary")
+    assert len(filtered["notes"]) == 1
+    assert filtered["notes"][0]["key"] == "summary"
+
+    empty_filter = env.read_notes(key="nonexistent")
+    assert len(empty_filter["notes"]) == 0
+
+
+def test_notes_isolated_between_environments():
+    env1 = ToolEnvironment()
+    env2 = ToolEnvironment()
+
+    env1.save_note(key="secret", content="note1")
+    assert len(env1.notes) == 1
+    assert len(env2.notes) == 0
+
+
+def test_dispatch_save_and_read_notes():
+    env = ToolEnvironment()
+    res_save = env.dispatch("save_note", {"key": "test_k", "content": "test_c"})
+    assert res_save.get("status") == "saved"
+
+    res_read = env.dispatch("read_notes", {"key": "test_k"})
+    assert "notes" in res_read
+    assert len(res_read["notes"]) == 1
+
+    # Missing arguments
+    err1 = env.dispatch("save_note", {"key": "only_key"})
+    assert "error" in err1
+    err2 = env.dispatch("save_note", {"content": "only_content"})
+    assert "error" in err2

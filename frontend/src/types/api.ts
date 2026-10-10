@@ -1,4 +1,4 @@
-import type { Verdict } from './evaluation';
+import type { Verdict, Severity } from './evaluation';
 import type { TraceEvent } from './events';
 
 export interface HealthResponse {
@@ -11,9 +11,10 @@ export interface ScenarioSummary {
   title: string;
   kind: "attack" | "benign";
   category: string;
-  severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
   description: string;
   user_prompt: string;
+  severity?: Severity | null;
+  group?: string | null;
 }
 
 export interface ScenarioPlanStep {
@@ -83,7 +84,8 @@ export interface ScenarioComparison {
     title: string;
     kind: "attack" | "benign";
     category: string;
-    severity?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+    severity?: Severity | null;
+    group?: string | null;
     none: { trial_id: string; verdict: string } | null;
     hardening?: { trial_id: string; verdict: string; task_completed: boolean; false_blocks: number } | null;
     gateway: { trial_id: string; verdict: string; blocked_rule_ids: string[]; task_completed: boolean; false_blocks: number } | null;

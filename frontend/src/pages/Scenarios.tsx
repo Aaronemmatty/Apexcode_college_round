@@ -56,6 +56,11 @@ function ScenarioDetailView({ taskId, onClose }: { taskId: string, onClose: () =
               {detail.kind.toUpperCase()}
             </Badge>
             <SeverityBadge severity={detail.severity} />
+            {detail.group && (
+              <Badge variant="secondary" className="bg-slate-800 text-slate-300 border-slate-700">
+                {detail.group}
+              </Badge>
+            )}
             <span className="text-xs text-slate-500 font-mono">{detail.category}</span>
           </div>
           <CardTitle className="text-xl leading-snug">{detail.title}</CardTitle>
@@ -238,7 +243,14 @@ export default function Scenarios() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-xs text-slate-500 mb-2 font-mono">{scenario.category}</div>
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      {scenario.group && (
+                        <Badge variant="secondary" className="bg-slate-800 text-slate-300 text-[10px] px-1.5 py-0">
+                          {scenario.group}
+                        </Badge>
+                      )}
+                      <span className="text-xs text-slate-500 font-mono">{scenario.category}</span>
+                    </div>
                     <p className="text-sm text-slate-300 line-clamp-2">{scenario.description}</p>
                   </CardContent>
                 </Card>
