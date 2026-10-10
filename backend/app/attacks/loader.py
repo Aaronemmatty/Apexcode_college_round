@@ -120,5 +120,19 @@ def load_scenarios(force_reload: bool = False) -> dict[str, TaskSpec]:
 
 
 def register_transient_task(task: TaskSpec) -> None:
-    cache = load_scenarios()
-    cache[task.task_id] = task
+    """Register task into generated_tasks DB table without touching the scenario cache."""
+    try:
+        from app.db.models import GeneratedTaskRow
+        from app.db.session import SessionLocal
+        with SessionLocal() as s:
+            existing = s.query(GeneratedTaskRow).filter(GeneratedTaskRow.task_id == task.task_id).first()
+            if not existing:
+                row = GeneratedTaskRow(
+                    task_id=task.task_id,
+                    spec_json=task.model_dump_json(),
+                    origin="custom" if "custom" in task.task_id else "mutation",
+                )
+                s.add(row)
+                s.commit()
+    except Exception:
+        pass

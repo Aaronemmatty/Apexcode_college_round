@@ -79,6 +79,7 @@ class EvaluationRow(Base):
 
     trial: Mapped["TrialRow"] = relationship("TrialRow", back_populates="evaluation")
 
+
 class ReplayRow(Base):
     """Replay record for a trial."""
 
@@ -93,16 +94,37 @@ class ReplayRow(Base):
     )
 
 
+class GeneratedTaskRow(Base):
+    """Dynamically generated or custom red-team task specifications."""
+
+    __tablename__ = "generated_tasks"
+
+    task_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    spec_json: Mapped[str] = mapped_column(Text, nullable=False)
+    origin: Mapped[str] = mapped_column(String(32), nullable=False, default="mutation")  # mutation | custom
+    parent_task_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    campaign_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    operator: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    seed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )
+
+
 class CampaignRow(Base):
+    """Autonomous attack discovery campaign record."""
+
     __tablename__ = "campaigns"
 
     campaign_id: Mapped[str] = mapped_column(String(32), primary_key=True)
-    defense: Mapped[str] = mapped_column(String(32), nullable=False, default="gateway")
-    budget: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
     seed: Mapped[int] = mapped_column(Integer, nullable=False, default=42)
+    budget: Mapped[int] = mapped_column(Integer, nullable=False, default=10)
+    defense: Mapped[str] = mapped_column(String(32), nullable=False, default="gateway")
+    seed_scenarios: Mapped[str] = mapped_column(Text, nullable=False, default="[]")  # JSON list of scenario IDs
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="completed")
+    summary_json: Mapped[str] = mapped_column(Text, nullable=False)
     bypasses_found: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)  # for backward compatibility
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )

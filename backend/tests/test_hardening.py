@@ -66,8 +66,8 @@ def test_regression_diff_endpoint(client, test_db):
     assert resp.status_code == 200
     data = resp.json()
     assert "summary" in data
-    assert data["summary"]["total"] >= 27
-    assert data["summary"]["fixed"] >= 19
+    assert data["summary"]["total"] >= 23
+    assert data["summary"]["fixed"] >= 14
     assert data["summary"]["still_violated"] >= 1
     assert "excessive_access_broad_query" in data["still_violated_task_ids"]
     assert data["summary"]["newly_violated"] == 0

@@ -78,7 +78,7 @@ def create_replay(trial_id: str, db: Session = Depends(get_db)) -> ReplayRespons
         raise HTTPException(status_code=404, detail="Trial not found.")
         
     run = trial.run
-    task = get_task(trial.task_id)
+    task = get_task(trial.task_id, db=db)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found.")
 

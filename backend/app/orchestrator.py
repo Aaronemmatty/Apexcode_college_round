@@ -105,7 +105,7 @@ def execute_run(db: Session, task_id: str, defense: str = "none") -> RunRow:
     if defense == "prompt_hardening":
         defense = "hardening" 
 
-    task = get_task(task_id)
+    task = get_task(task_id, db=db)
     if task is None:
         raise HTTPException(
             status_code=404,
