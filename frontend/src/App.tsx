@@ -3,6 +3,8 @@ import { Home, List, ArrowLeftRight, Menu } from 'lucide-react';
 import { useState } from 'react';
 import { getHealth, useAsync } from './api/client';
 import Overview from './pages/Overview';
+import Scenarios from './pages/Scenarios';
+import TrialViewer from './pages/TrialViewer';
 import { Button } from '@/components/ui/button';
 
 function PlaceholderPage({ title }: { title: string }) {
@@ -77,14 +79,14 @@ export default function App() {
 
         {/* Main Content */}
         <main className="flex-1 h-full overflow-y-auto pt-16 md:pt-0 p-4 md:p-8">
-          <div className="max-w-6xl mx-auto">
+          <div className="max-w-6xl mx-auto h-full">
             <Routes>
               <Route path="/" element={<Overview />} />
-              <Route path="/scenarios" element={<PlaceholderPage title="Scenarios" />} />
-              <Route path="/trials/:trialId" element={<PlaceholderPage title="Trial Details" />} />
+              <Route path="/scenarios" element={<Scenarios />} />
+              <Route path="/trials/:trialId" element={<TrialViewer />} />
               <Route path="/compare" element={<PlaceholderPage title="Compare" />} />
             </Routes>
-            <div className="mt-12 pt-6 border-t border-slate-800 text-center text-slate-500 text-sm">
+            <div className="mt-12 pt-6 border-t border-slate-800 text-center text-slate-500 text-sm pb-8">
               Controlled mock-tool harness. Not an OS-level sandbox.
             </div>
           </div>

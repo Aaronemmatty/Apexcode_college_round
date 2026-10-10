@@ -94,9 +94,8 @@ export default function Overview() {
   const getPercent = (num: number, den: number) => 
     den === 0 ? 'No data' : `${Math.round((num / den) * 100)}% (${num}/${den})`;
 
-  // Recent Runs (API returns in whatever order, we just reverse to get newest first if they are appended,
-  // but let's assume the API already sorts or we just reverse the array for "newest first by API order")
-  const recentRuns = [...runs].reverse().slice(0, 10);
+  // Recent Runs (API returns newest first)
+  const recentRuns = runs.slice(0, 10);
 
   return (
     <div className="space-y-6">

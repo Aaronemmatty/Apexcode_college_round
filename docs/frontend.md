@@ -20,3 +20,21 @@ Currently, all dashboard metrics on the Overview page are computed client-side b
 - **Benign Trials Held**: Counts `held` benign trials divided by completed benign trials. Note: this relies purely on the security verdict logic.
 
 > **Note:** Computing metrics client-side is a temporary MVP measure. In Phase 6, these aggregations will be moved to a dedicated server-side analytics endpoint to eliminate heavy client-side filtering.
+
+## Scenarios & Launcher
+The Scenarios page lists all available tests, supporting filtering by kind and full-text search. The detail panel includes a **Run Launcher**:
+- **Single Defense**: Initiates a single test run (`No defense` or `Gateway`) and navigates directly to the trace viewer upon completion.
+- **Both (Compare)**: Runs the baseline (`none`) and then the `gateway` trial sequentially. It navigates to the gateway trace viewer, embedding the baseline trial ID into the `?baseline=` query parameter to allow easy comparison links.
+
+## Trace Viewer & Evidence
+The Trial Trace Viewer presents the full lifecycle of an agent trial.
+- **Evaluation Panel**: Displays all scored invariants. When an invariant is violated, it provides specific **Evidence** (a text detail and related event IDs). Clicking an event ID automatically scrolls to and highlights the corresponding step in the timeline.
+- **Timeline**: A chronological list of agent/tool interactions. Long text and JSON arguments are truncated but expandable.
+- **Synthetic Canary Exposure**: Any appearance of the exact canary string (`CANARY-[0-9A-F]{6}-DO-NOT-DISCLOSE`) is automatically highlighted with a red badge, exposing leaks explicitly.
+- **Replay Check**: A determinism check button triggers the backend replay endpoint to verify if the agent diverges from its recorded trace.
+
+### Manual Verification Required
+Due to limitations in the environment, certain frontend attributes require human eyes to verify:
+1. **Responsiveness**: Specifically, confirming the timeline layout and sidebars collapse gracefully down to a 375px width screen.
+2. **Keyboard Focus Rings**: Ensuring interactive elements (tabs, filters, timeline buttons) properly show focus states for accessibility.
+3. **Scroll into View**: Verifying the smooth scrolling animation works perfectly when clicking evidence tags in the invariant evaluation panel.
