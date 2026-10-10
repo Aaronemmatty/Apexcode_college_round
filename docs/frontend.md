@@ -1,49 +1,97 @@
-﻿# Frontend Architecture
+# Frontend Architecture
+
+## Navigation
+
+Sidebar nav order (left → right / top → bottom):
+1. **Overview** (`/`) — Dashboard with bar chart, stat cards, attack-group table, latest finding
+2. **Attack Lab** (`/attack-lab`) — Custom payload red-team tool
+3. **Attack Info** (`/attack-info`) — Information about each attack scenario (renamed from Scenarios)
+4. **Campaign** (`/campaign`) — Mutation-based attack discovery
+5. **Permission Audit** (`/audit`) — Tool capabilities vs scope, per-run permissions matrix
+6. **Run History** (`/history`) — All runs with filters and pagination
+7. **Reports** (`/report`) — Per-run security finding documents
+
+The `/compare` route redirects to `/` (Overview). The backend compare API remains unchanged.
+
+Under the nav, a "Recent Runs" list (latest 5 runs: scenario ID, defense badge, verdict dot) is shown on desktop only. Collapses to nothing on mobile (hidden md:block).
 
 ## Routes
-The frontend is a single-page application built with React, React Router DOM, and Tailwind CSS / shadcn components:
-- `/` - Overview (Headline Defense Stats, Server-Side Aggregations, and Recent Runs)
-- `/scenarios` - Scenario Catalog and Interactive Run Launcher
-- `/trials/:trialId` - Trial Trace Timeline, Invariant Evaluations, and Canary Indicators
-- `/compare` - Phase 6 Defense Efficacy Comparison, Categorical Breakdown, and Report Exports
 
-## API Client
-The API client is located in `src/api/client.ts`. It leverages the native `fetch` API, returning strict TypeScript types representing canonical backend contracts:
-- `ApiError`: Parses standard `{"error": {"code", "message"}}` payloads and HTTP status codes, defaulting to `NETWORK_ERROR`.
-- `useAsync(fetcherFn)`: Hook providing `{ data, error, loading, reload }` state management without heavy third-party async dependencies.
-- **Phase 6 Analytics Helpers**:
-  - `getCompare()`: Fetches comparison metrics from `GET /api/compare`.
-  - `runReplayAll()`: Triggers full matrix replay checks via `POST /api/replays/run-all`.
-  - `getReportUrl(format)`: Resolves full URL for downloading reports (`json` or `md`).
-  - `downloadReport(format)`: Triggers file download of JSON or Markdown reports.
-  - `getReport(format)`: Retrieves report payload programmatically.
+| Path | Component | Description |
+|---|---|---|
+| `/` | `Overview` | Dashboard |
+| `/attack-lab` | `AttackLab` | Custom payload red team |
+| `/attack-info` | `AttackInfo` | Per-attack information cards |
+| `/campaign` | `Campaign` | Mutation campaigns |
+| `/audit` | `PermissionAudit` | Permission audit |
+| `/history` | `History` | Run history table |
+| `/report` | `Report` | Per-run reports |
+| `/report?trial=<id>` | `Report` | Pre-selected trial report |
+| `/trials/:trialId` | `TrialViewer` | Full trace viewer |
+| `/compare` | redirects to `/` | Compare route retained for backend compatibility |
 
-## Overview Dashboard
-The Overview page consumes server-side aggregated metrics via `getCompare()` along with `listScenarios` and `listRuns`:
-- **Headline Stat Cards**: Displays Total Runs, Attack Success without Defense, Residual Compromise with Gateway, and Benign Trials Held.
-- **Exclusion Note**: Highlights failed or inconclusive trials excluded from rate calculations.
-- **Recent Runs Table**: Ordered chronological list of recent executions with status badges and links to trace viewers.
+## Pages
 
-## Compare Page
-The Compare page (`/compare`) offers comparative evaluation:
-- **Headline Cards**: Attack violation rates, residual risk, benign workflow preservation, and false block rate.
-- **Category Chart**: Side-by-side bar visualization of violations across attack categories.
-- **Replay Consistency Card & Action**: Triggers `POST /api/replays/run-all` to verify trace determinism across all trials.
-- **Report Exports**: Download buttons for both JSON and Markdown (`agentbreak-report.md`) formats.
-- **Per-Scenario Comparison Table**:
-  - Detailed rows showing baseline verdict, gateway verdict, change status (`prevented`, `still_violated`, `no_change`, `incomplete`), and triggered gateway rule IDs.
-  - Filters for `All`, `Attacks`, `Benign`, and `Changed`.
-  - Direct links to trial trace logs.
-- **Block Counts by Rule Table**: Displays blocked call frequencies and total violations listed per gateway rule.
+### Overview (`/`)
+- Bar chart (left, 2/3 width): attack success rate per group (No Defense vs Gateway)
+- Stat cards (right stack): attack success no defense (n/m), violated with defense, attacks prevented, benign held, false blocks, total trials, inconclusive/failed, severity breakdown, most-blocking rule
+- Attack-group summary table (group, attacks, violated no defense, violated with defense)
+- Latest finding card (newest violated trial with severity and link)
+- No "Residual Attacks" card, no "Recent Run History" table (those moved to History/Reports)
 
-## Scenarios & Launcher
-The Scenarios page lists all 12 test scenarios with filtering and full-text search. The detail panel includes:
-- **Single Defense Run**: Launches an individual run (`No defense` or `Gateway`) and navigates to the trace viewer.
-- **Compare Run**: Executes baseline and gateway trials sequentially for comparative analysis.
+### Attack Info (`/attack-info`)
+Renamed from Scenarios. Replaces scenario config view with plain information:
+- Grouped cards/accordion by attack group
+- Each card: expandable with What the attacker tries, How it is simulated (documents + tool calls), Why it works with no defense, Which gateway rule stops it (or "Not stopped: residual")
+- "Run in Attack Lab" button linking to `/attack-lab?scenario=<id>`
+- Search box, filter by group and severity
+- Benign scenarios in a separate "Normal tasks (should NOT be blocked)" section
+- Static rule_id → explanation mapping lives in `frontend/src/pages/AttackInfo.tsx`
 
-## Trace Viewer & Evidence
-The Trial Trace Viewer presents the full lifecycle of an agent trial:
-- **Evaluation Panel**: Displays all evaluated invariants and specific evidence (event IDs).
-- **Timeline**: Chronological list of agent inputs, tool requests, gateway decisions, and outputs.
-- **Synthetic Canary Exposure**: Highlights leaks of the canary token (`CANARY-[0-9A-F]{6}-DO-NOT-DISCLOSE`).
-- **Single Replay Check**: Verifies deterministic reproduction of individual trial traces.
+### History (`/history`)
+NEW page. Table of all runs (newest first from API):
+- Columns: Run ID, Scenario (title + task_id), Group, Backend, Defense, Verdict, Severity, Trace link, Report link
+- Filters: verdict, defense, backend, text search
+- "Load more" pagination (25 per page)
+- Violated rows highlighted with red background
+
+### Reports (`/report`)
+Redesigned as per-run document list. Each run opens a multi-section report:
+- a) Summary, b) What happened (timeline), c) Violations, d) What to do (recommendation mapping), e) Replay
+- Download Markdown (Blob, client-side) and Print/PDF (`window.print()`)
+- "Export all" uses existing `/api/report` backend endpoint
+- Filter bar: verdict, defense, "Violations only"
+- Preselectable via `?trial=<trialId>` query param
+- See `docs/reports.md` for the recommendation mapping table
+
+### Permission Audit (`/audit`)
+Redesigned layout:
+- Scenario/trial selector → per-run permissions matrix table (tools × Allowed/Requested/Executed/Blocked)
+- Yes/No/n/a text badges in matrix cells
+- Recipients section (permitted vs actually emailed) and data-access section
+- Violations highlighted with red left border
+- Summary banner: "Within scope" or "N permission violations"
+- Existing tool capability cards and attack abuse matrix retained below
+
+### Campaign (`/campaign`)
+Unchanged layout. Future: redesign per spec 4 (results table with bypass highlight).
+
+## API Client (`src/api/client.ts`)
+All existing exports preserved. Notable:
+- `listRuns(backend?)` — returns `Run[]`
+- `getTrace(trialId)` — returns `TraceResponse` with `{ trial_id, run_id, status, events }`
+- `getEvaluation(trialId)` — returns `Evaluation`
+- `getCompare()` — returns `CompareMetrics` (used by Overview)
+- `downloadReport(format)` — triggers global JSON/Markdown export
+
+## Key Files
+| File | Purpose |
+|---|---|
+| `src/App.tsx` | Router, sidebar, recent-runs list |
+| `src/pages/Overview.tsx` | Dashboard |
+| `src/pages/AttackInfo.tsx` | Attack info cards (renamed from Scenarios.tsx) |
+| `src/pages/History.tsx` | Run history table (NEW) |
+| `src/pages/Report.tsx` | Per-run reports |
+| `src/pages/PermissionAudit.tsx` | Permission audit with matrix |
+| `src/pages/Campaign.tsx` | Campaign page |
+| `docs/reports.md` | Per-run report sections + recommendation mapping |

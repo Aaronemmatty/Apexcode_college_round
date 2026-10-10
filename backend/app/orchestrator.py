@@ -77,6 +77,13 @@ def simulate_trial(
             saved_replies=saved_replies,
             prompt_hardening=is_hardening,
         )
+    elif backend == "http_agent":
+        from app.agent.adapter import HttpAgentAdapter
+        cfg = backend_config or {}
+        agent = HttpAgentAdapter(
+            endpoint_url=cfg.get("url", "http://localhost:9000/chat"),
+            timeout=cfg.get("timeout", 15.0),
+        )
     else:
         agent = ScriptedAgent(
             task=task,
@@ -88,7 +95,10 @@ def simulate_trial(
     trial_status = "completed"
     trial_error = None
     try:
-        agent.run()
+        if backend == "http_agent":
+            agent.run(task, executor, recorder, defense)
+        else:
+            agent.run()
         if backend == "ollama" and getattr(agent, "inconclusive", False):
             trial_status = "inconclusive"
             trial_error = getattr(agent, "inconclusive_reason", "Inconclusive Ollama response")

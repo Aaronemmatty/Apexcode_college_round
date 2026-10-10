@@ -193,4 +193,6 @@ class HttpAgentAdapter(AgentAdapter):
             )
             logger.info(f"External agent call {tool_name}: status={outcome.execution_status}")
 
+        # Emit final agent output so the evaluator can assess the trial
+        recorder.record_final_output(content="[External agent completed tool calls]", step=step + 1)
         return recorder.events

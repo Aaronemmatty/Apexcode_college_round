@@ -27,6 +27,8 @@ export interface ScenarioDetail extends ScenarioSummary {
   permitted_tools: string[];
   permitted_recipients: string[];
   plan: ScenarioPlanStep[];
+  documents?: Record<string, { title?: string; content: string }>;
+  max_customer_records?: number;
   expected: Record<string, unknown>;
 }
 
@@ -50,6 +52,9 @@ export interface Run {
 }
 
 export interface TraceResponse {
+  trial_id?: string;
+  run_id?: string;
+  status?: string;
   events: TraceEvent[];
 }
 

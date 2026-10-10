@@ -1,15 +1,14 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Home, List, ArrowLeftRight, Terminal, Sparkles, FileText, Menu, ShieldCheck } from 'lucide-react';
+import { Home, List, Terminal, FileText, Menu, ShieldCheck, Clock } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { getHealth, useAsync } from './api/client';
+import { getHealth, useAsync, listRuns } from './api/client';
 import Overview from './pages/Overview';
-import Scenarios from './pages/Scenarios';
+import AttackInfo from './pages/AttackInfo';
 import TrialViewer from './pages/TrialViewer';
-import Compare from './pages/Compare';
 import AttackLab from './pages/AttackLab';
-import Campaign from './pages/Campaign';
 import Report from './pages/Report';
 import PermissionAudit from './pages/PermissionAudit';
+import History from './pages/History';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ToastProvider } from './context/ToastContext';
@@ -31,11 +30,10 @@ function TitleManager() {
   useEffect(() => {
     const p = location.pathname;
     if (p === '/') document.title = 'AgentBreak | Overview';
-    else if (p.startsWith('/scenarios')) document.title = 'AgentBreak | Scenarios';
+    else if (p.startsWith('/attack-info')) document.title = 'AgentBreak | Attack Info';
     else if (p.startsWith('/attack-lab')) document.title = 'AgentBreak | Attack Lab';
-    else if (p.startsWith('/campaign')) document.title = 'AgentBreak | Campaign';
-    else if (p.startsWith('/compare')) document.title = 'AgentBreak | Compare';
     else if (p.startsWith('/audit')) document.title = 'AgentBreak | Permission Audit';
+    else if (p.startsWith('/history')) document.title = 'AgentBreak | Run History';
     else if (p.startsWith('/report')) document.title = 'AgentBreak | Report';
     else if (p.startsWith('/trials')) document.title = 'AgentBreak | Trial Viewer';
     else document.title = 'AgentBreak | Not Found';
@@ -45,17 +43,17 @@ function TitleManager() {
 
 function Sidebar() {
   const { data: health, loading } = useAsync(getHealth);
+  const { data: recentRuns } = useAsync(() => listRuns().then(r => r.slice(0, 5)));
   const location = useLocation();
   const isHealthy = health?.status === 'ok' || health?.status === 'healthy';
 
   const navItems = [
     { to: '/', label: 'Overview', icon: Home, color: 'text-blue-400' },
-    { to: '/scenarios', label: 'Scenarios', icon: List, color: 'text-amber-400' },
     { to: '/attack-lab', label: 'Attack Lab', icon: Terminal, color: 'text-emerald-400' },
-    { to: '/campaign', label: 'Campaign', icon: Sparkles, color: 'text-purple-400' },
+    { to: '/attack-info', label: 'Attack Info', icon: List, color: 'text-amber-400' },
     { to: '/audit', label: 'Permission Audit', icon: ShieldCheck, color: 'text-teal-400' },
-    { to: '/compare', label: 'Compare', icon: ArrowLeftRight, color: 'text-cyan-400' },
-    { to: '/report', label: 'Report', icon: FileText, color: 'text-rose-400' },
+    { to: '/history', label: 'Run History', icon: Clock, color: 'text-indigo-400' },
+    { to: '/report', label: 'Reports', icon: FileText, color: 'text-rose-400' },
   ];
 
   return (
@@ -92,6 +90,33 @@ function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Recent Runs list */}
+      <div className="hidden md:block px-4 py-3 border-t border-slate-800/80">
+        <h3 className="text-[10px] uppercase font-semibold text-slate-500 tracking-wider mb-2">Recent Runs</h3>
+        <div className="space-y-1">
+          {recentRuns?.map(r => {
+            const firstTrial = r.trials?.[0];
+            const rVerdict = firstTrial?.verdict ?? 'inconclusive';
+            const rDefense = r.defense || 'none';
+            const linkTarget = firstTrial?.trial_id ? `/trials/${firstTrial.trial_id}` : `/history`;
+            return (
+              <Link to={linkTarget} key={r.run_id} className="block text-xs group">
+                <div className="flex items-center justify-between text-slate-400 group-hover:text-slate-200">
+                  <span className="truncate w-24">{r.task_id}</span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="text-[9px] uppercase border border-slate-700 px-1 rounded text-slate-500">{rDefense}</span>
+                    <div className={`w-1.5 h-1.5 rounded-full ${rVerdict === 'violated' ? 'bg-red-500' : rVerdict === 'held' ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                      title={rVerdict}
+                    />
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+          {!recentRuns?.length && <div className="text-[10px] text-slate-600">No runs yet</div>}
+        </div>
+      </div>
 
       <div className="p-4 border-t border-slate-800/80 text-xs">
         <div className="flex items-center gap-2">
@@ -141,12 +166,12 @@ export default function App() {
           <div className="max-w-6xl mx-auto h-full">
             <Routes>
               <Route path="/" element={<Overview />} />
-              <Route path="/scenarios" element={<Scenarios />} />
+              <Route path="/attack-info" element={<AttackInfo />} />
               <Route path="/attack-lab" element={<AttackLab />} />
-              <Route path="/campaign" element={<Campaign />} />
               <Route path="/audit" element={<PermissionAudit />} />
-              <Route path="/compare" element={<Compare />} />
+              <Route path="/history" element={<History />} />
               <Route path="/report" element={<Report />} />
+              <Route path="/compare" element={<Overview />} />
               <Route path="/trials/:trialId" element={<TrialViewer />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
