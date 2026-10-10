@@ -18,7 +18,7 @@ def main():
     db = SessionLocal()
 
     tasks = list_tasks()
-    defenses = ["none", "gateway"]
+    defenses = ["none", "prompt_hardening", "gateway", "both"]
 
     all_passed = True
     results = []

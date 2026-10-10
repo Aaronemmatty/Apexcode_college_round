@@ -69,6 +69,8 @@ def get_compare_metrics(db: Session):
     attack_violated_hardening_m = 0
     attack_violated_gateway_n = 0
     attack_violated_gateway_m = 0
+    attack_violated_both_n = 0
+    attack_violated_both_m = 0
     attack_prevented = 0
     attack_still_violated = []
     
@@ -78,11 +80,15 @@ def get_compare_metrics(db: Session):
     benign_held_hardening_m = 0
     benign_held_gateway_n = 0
     benign_held_gateway_m = 0
+    benign_held_both_n = 0
+    benign_held_both_m = 0
     
     benign_task_completed_hardening_n = 0
     benign_task_completed_hardening_m = 0
     benign_task_completed_gateway_n = 0
     benign_task_completed_gateway_m = 0
+    benign_task_completed_both_n = 0
+    benign_task_completed_both_m = 0
     
     false_blocks_total = 0
     false_block_rate_n = 0
@@ -109,13 +115,16 @@ def get_compare_metrics(db: Session):
             by_category[cat] = {
                 "violated_none": 0,
                 "violated_hardening": 0,
+                "violated_prompt_hardening": 0,
                 "violated_gateway": 0,
+                "violated_both": 0,
                 "total": 0
             }
             
         none_tup = selected_trials.get((tid, "none"))
-        hd_tup = selected_trials.get((tid, "hardening"))
+        hd_tup = selected_trials.get((tid, "prompt_hardening")) or selected_trials.get((tid, "hardening"))
         gw_tup = selected_trials.get((tid, "gateway"))
+        both_tup = selected_trials.get((tid, "both"))
         
         if kind == "attack":
             by_category[cat]["total"] += 1
@@ -151,6 +160,7 @@ def get_compare_metrics(db: Session):
                 if ev.verdict == "violated":
                     attack_violated_hardening_n += 1
                     by_category[cat]["violated_hardening"] += 1
+                    by_category[cat]["violated_prompt_hardening"] += 1
             else:
                 benign_held_hardening_m += 1
                 benign_task_completed_hardening_m += 1
@@ -209,6 +219,43 @@ def get_compare_metrics(db: Session):
                 false_block_rate_m += 1
                 if fb > 0:
                     false_block_rate_n += 1
+
+        both_data = None
+        if both_tup:
+            t, ev = both_tup
+            result_json = json.loads(ev.result_json) if ev.result_json else {}
+            task_comp = result_json.get("task_completed", False)
+            fb = result_json.get("false_blocks", 0)
+
+            blocked_rules = set()
+            events = db.execute(select(EventRow).where(EventRow.trial_id == t.trial_id)).scalars().all()
+            for erow in events:
+                payload = json.loads(erow.payload)
+                if payload.get("type") == "gateway_decision":
+                    decision = payload.get("decision")
+                    rule_id = payload.get("rule_id")
+                    if decision == "blocked" and rule_id:
+                        blocked_rules.add(rule_id)
+
+            both_data = {
+                "trial_id": t.trial_id,
+                "verdict": ev.verdict,
+                "blocked_rule_ids": sorted(blocked_rules),
+                "task_completed": task_comp,
+                "false_blocks": fb
+            }
+            if kind == "attack":
+                attack_violated_both_m += 1
+                if ev.verdict == "violated":
+                    attack_violated_both_n += 1
+                    by_category[cat]["violated_both"] += 1
+            else:
+                benign_held_both_m += 1
+                benign_task_completed_both_m += 1
+                if task_comp:
+                    benign_task_completed_both_n += 1
+                if ev.verdict == "held":
+                    benign_held_both_n += 1
                     
         change = "incomplete"
         if not none_data or not gw_data:
@@ -240,11 +287,13 @@ def get_compare_metrics(db: Session):
             "group": sc.get("group"),
             "none": none_data,
             "hardening": hd_data,
+            "prompt_hardening": hd_data,
             "gateway": gw_data,
+            "both": both_data,
             "change": change
         })
         
-        for tup in (none_tup, gw_tup):
+        for tup in (none_tup, gw_tup, both_tup):
             if tup:
                 rep = db.execute(select(ReplayRow).where(ReplayRow.original_trial_id == tup[0].trial_id).order_by(ReplayRow.created_at.desc())).scalars().first()
                 if rep:
@@ -259,14 +308,20 @@ def get_compare_metrics(db: Session):
         "excluded_inconclusive": excluded_inconclusive,
         "attack_violated_none": {"n": attack_violated_none_n, "m": attack_violated_none_m},
         "attack_violated_hardening": {"n": attack_violated_hardening_n, "m": attack_violated_hardening_m},
+        "attack_violated_prompt_hardening": {"n": attack_violated_hardening_n, "m": attack_violated_hardening_m},
         "attack_violated_gateway": {"n": attack_violated_gateway_n, "m": attack_violated_gateway_m},
+        "attack_violated_both": {"n": attack_violated_both_n, "m": attack_violated_both_m},
         "attack_prevented": attack_prevented,
         "attack_still_violated": attack_still_violated,
         "benign_held_none": {"n": benign_held_none_n, "m": benign_held_none_m},
         "benign_held_hardening": {"n": benign_held_hardening_n, "m": benign_held_hardening_m},
+        "benign_held_prompt_hardening": {"n": benign_held_hardening_n, "m": benign_held_hardening_m},
         "benign_held_gateway": {"n": benign_held_gateway_n, "m": benign_held_gateway_m},
+        "benign_held_both": {"n": benign_held_both_n, "m": benign_held_both_m},
         "benign_task_completed_hardening": {"n": benign_task_completed_hardening_n, "m": benign_task_completed_hardening_m},
+        "benign_task_completed_prompt_hardening": {"n": benign_task_completed_hardening_n, "m": benign_task_completed_hardening_m},
         "benign_task_completed_gateway": {"n": benign_task_completed_gateway_n, "m": benign_task_completed_gateway_m},
+        "benign_task_completed_both": {"n": benign_task_completed_both_n, "m": benign_task_completed_both_m},
         "false_blocks_total": false_blocks_total,
         "false_block_rate": {"n": false_block_rate_n, "m": false_block_rate_m},
         "block_counts_by_rule": dict(block_counts_by_rule),

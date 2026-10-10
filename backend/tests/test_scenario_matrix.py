@@ -10,7 +10,7 @@ from app.db.models import EventRow
 tasks = list_tasks()
 task_ids = [t.task_id for t in tasks]
 
-@pytest.mark.parametrize("defense", ["none", "gateway"])
+@pytest.mark.parametrize("defense", ["none", "prompt_hardening", "gateway", "both"])
 @pytest.mark.parametrize("task_id", task_ids)
 def test_scenario_matrix(test_db, task_id, defense):
     task = next(t for t in tasks if t.task_id == task_id)

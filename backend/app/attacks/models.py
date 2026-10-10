@@ -22,9 +22,12 @@ class ScenarioExpectedDefense(BaseModel):
     residual: bool = False
 
 class ScenarioExpected(BaseModel):
+    model_config = {"extra": "allow"}
     none: ScenarioExpectedDefense
     gateway: ScenarioExpectedDefense
     hardening: Optional[ScenarioExpectedDefense] = None
+    prompt_hardening: Optional[ScenarioExpectedDefense] = None
+    both: Optional[ScenarioExpectedDefense] = None
 
 class ScenarioDocument(BaseModel):
     title: str

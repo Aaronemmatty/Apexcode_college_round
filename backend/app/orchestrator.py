@@ -25,7 +25,7 @@ from app.events import TraceEvent
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_DEFENSES = {"none", "hardening", "prompt_hardening", "gateway"}
+SUPPORTED_DEFENSES = {"none", "hardening", "prompt_hardening", "gateway", "both"}
 SUPPORTED_BACKENDS = {"scripted", "ollama"}
 
 
@@ -51,9 +51,10 @@ def simulate_trial(
     direct = DirectExecutor(env)
     recorder = TraceRecorder(run_id=run_id, trial_id=trial_id)
 
-    defense_mode = "hardening" if defense in ("hardening", "prompt_hardening") else defense
+    is_hardening = defense in ("hardening", "prompt_hardening", "both")
+    is_gateway = defense in ("gateway", "both")
 
-    if defense_mode == "gateway":
+    if is_gateway:
         policy = GatewayPolicy.from_task(task)
         gateway = SecurityGateway(policy)
         executor = GatewayExecutor(inner=direct, gateway=gateway, recorder=recorder)
@@ -74,17 +75,15 @@ def simulate_trial(
             timeout=cfg.get("timeout", 60.0),
             max_steps=cfg.get("max_steps", 10),
             saved_replies=saved_replies,
+            prompt_hardening=is_hardening,
         )
-    elif defense_mode == "hardening":
+    else:
         agent = ScriptedAgent(
             task=task,
             executor=executor,
             recorder=recorder,
-            follow_embedded_instructions=False,
-            filter_prompt_injection=True,
+            prompt_hardening=is_hardening,
         )
-    else:
-        agent = ScriptedAgent(task=task, executor=executor, recorder=recorder)
 
     trial_status = "completed"
     trial_error = None
@@ -170,8 +169,8 @@ def execute_run(
             detail=f"Unsupported backend '{backend}'. Supported backends are: {sorted(SUPPORTED_BACKENDS)}.",
         )
 
-    if defense == "prompt_hardening":
-        defense = "hardening"
+    if defense == "hardening":
+        defense = "prompt_hardening"
 
     task = get_task(task_id, db=db)
     if task is None:

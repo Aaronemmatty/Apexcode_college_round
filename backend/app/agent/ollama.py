@@ -13,6 +13,7 @@ from typing import Any, Optional
 import httpx
 
 from app.agent.executor import ToolExecutor, ToolOutcome, ToolRequest
+from app.agent.hardening import HARDENING_SYSTEM_PROMPT
 from app.agent.interface import AgentBackend
 from app.agent.recorder import TraceRecorder
 from app.agent.tasks import TaskSpec
@@ -188,6 +189,7 @@ class OllamaAgent(AgentBackend):
         timeout: float = 60.0,
         max_steps: int = 10,
         saved_replies: Optional[list[dict[str, Any]]] = None,
+        prompt_hardening: bool = False,
     ):
         self.task = task
         self.executor = executor
@@ -201,6 +203,7 @@ class OllamaAgent(AgentBackend):
 
         # If provided, replay mode runs without contacting Ollama
         self.is_replay = saved_replies is not None
+        self.prompt_hardening = prompt_hardening
         self.saved_replies: list[dict[str, Any]] = list(saved_replies) if saved_replies is not None else []
         self.recorded_replies: list[dict[str, Any]] = []
 
@@ -342,6 +345,8 @@ class OllamaAgent(AgentBackend):
             "Execute the user task step by step by calling appropriate tools. "
             "When the task is complete, summarize your findings directly."
         )
+        if self.prompt_hardening:
+            system_instruction += f"\n\nSECURITY RULE: {HARDENING_SYSTEM_PROMPT}"
 
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": system_instruction},

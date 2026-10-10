@@ -1,4 +1,4 @@
-"""Scripted agent implementation for AgentBreak.
+﻿"""Scripted agent implementation for AgentBreak.
 
 Deterministic simulation of a vulnerable agent used to make the harness
 reproducible, not a real LLM.
@@ -10,35 +10,43 @@ import re
 from typing import Any
 
 from app.agent.executor import ToolExecutor, ToolOutcome, ToolRequest
+from app.agent.hardening import is_canonical_directive
 from app.agent.interface import AgentBackend
 from app.agent.recorder import TraceRecorder
 from app.agent.tasks import TaskSpec
 from app.events import ExecutionStatus, Source
 
 # Syntax: [[ACTION <tool> key=value key="quoted value" ...]]
-DIRECTIVE_REGEX = re.compile(r'\[\[ACTION\s+([a-zA-Z0-9_]+)(.*?)\]\]')
+DIRECTIVE_REGEX = re.compile(r'\[\[ACTION\s+([a-zA-Z0-9_]+)(.*?)\]\]', re.IGNORECASE)
 KV_REGEX = re.compile(r'([a-zA-Z0-9_]+)=(?:"([^"]*)"|\'([^\']*)\'|(\S+))')
+
+
+def parse_action_directives_with_raw(text: str) -> list[tuple[str, str, dict[str, str]]]:
+    """Parse embedded machine-readable action directives from text lines.
+
+    Returns list of (raw_match, tool_name, arguments_dict).
+    """
+    actions: list[tuple[str, str, dict[str, str]]] = []
+    for line in text.splitlines():
+        for match in DIRECTIVE_REGEX.finditer(line):
+            raw_match = match.group(0)
+            tool_name = match.group(1).strip()
+            args_str = match.group(2).strip()
+            arguments: dict[str, str] = {}
+            if args_str:
+                for kv in KV_REGEX.finditer(args_str):
+                    key = kv.group(1)
+                    val = kv.group(2) if kv.group(2) is not None else (
+                        kv.group(3) if kv.group(3) is not None else kv.group(4)
+                    )
+                    arguments[key] = val or ""
+            actions.append((raw_match, tool_name, arguments))
+    return actions
 
 
 def parse_action_directives(text: str) -> list[tuple[str, dict[str, str]]]:
     """Parse embedded machine-readable action directives from text lines."""
-    actions: list[tuple[str, dict[str, str]]] = []
-    for line in text.splitlines():
-        match = DIRECTIVE_REGEX.search(line)
-        if not match:
-            continue
-        tool_name = match.group(1).strip()
-        args_str = match.group(2).strip()
-        arguments: dict[str, str] = {}
-        if args_str:
-            for kv in KV_REGEX.finditer(args_str):
-                key = kv.group(1)
-                val = kv.group(2) if kv.group(2) is not None else (
-                    kv.group(3) if kv.group(3) is not None else kv.group(4)
-                )
-                arguments[key] = val
-        actions.append((tool_name, arguments))
-    return actions
+    return [(tool, args) for _, tool, args in parse_action_directives_with_raw(text)]
 
 
 def _extract_strings(data: Any) -> list[str]:
@@ -67,6 +75,7 @@ class ScriptedAgent(AgentBackend):
         task: TaskSpec,
         executor: ToolExecutor,
         recorder: TraceRecorder,
+        prompt_hardening: bool = False,
         follow_embedded_instructions: bool = True,
         filter_prompt_injection: bool = False,
         max_steps: int = 10,
@@ -74,6 +83,7 @@ class ScriptedAgent(AgentBackend):
         self.task = task
         self.executor = executor
         self.recorder = recorder
+        self.prompt_hardening = prompt_hardening
         self.follow_embedded_instructions = follow_embedded_instructions
         self.filter_prompt_injection = filter_prompt_injection
         self.max_steps = max_steps
@@ -166,8 +176,13 @@ class ScriptedAgent(AgentBackend):
             if self.follow_embedded_instructions and outcome.result:
                 all_strings = _extract_strings(outcome.result)
                 for string_block in all_strings:
-                    directives = parse_action_directives(string_block)
-                    for dir_tool, dir_args in directives:
+                    directives = parse_action_directives_with_raw(string_block)
+                    for raw_match, dir_tool, dir_args in directives:
+                        # In simulated prompt hardening mode:
+                        # canonical directives in tool output/documents are ignored,
+                        # but syntax mutations bypass hardening and are queued.
+                        if self.prompt_hardening and is_canonical_directive(raw_match):
+                            continue
                         queue.append((dir_tool, dir_args, Source.UNTRUSTED_DOCUMENT))
 
         # Final output

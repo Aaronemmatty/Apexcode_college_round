@@ -92,7 +92,9 @@ export interface ScenarioComparison {
     group?: string | null;
     none: { trial_id: string; verdict: string } | null;
     hardening?: { trial_id: string; verdict: string; task_completed: boolean; false_blocks: number } | null;
+    prompt_hardening?: { trial_id: string; verdict: string; task_completed: boolean; false_blocks: number } | null;
     gateway: { trial_id: string; verdict: string; blocked_rule_ids: string[]; task_completed: boolean; false_blocks: number } | null;
+    both?: { trial_id: string; verdict: string; blocked_rule_ids: string[]; task_completed: boolean; false_blocks: number } | null;
     change: "prevented" | "still_violated" | "no_change" | "incomplete";
 }
 
@@ -101,19 +103,32 @@ export interface CompareMetrics {
     excluded_inconclusive: number;
     attack_violated_none: MetricFraction;
     attack_violated_hardening?: MetricFraction;
+    attack_violated_prompt_hardening?: MetricFraction;
     attack_violated_gateway: MetricFraction;
+    attack_violated_both?: MetricFraction;
     attack_prevented: number;
     attack_still_violated: string[];
     benign_held_none: MetricFraction;
     benign_held_hardening?: MetricFraction;
+    benign_held_prompt_hardening?: MetricFraction;
     benign_held_gateway: MetricFraction;
+    benign_held_both?: MetricFraction;
     benign_task_completed_hardening?: MetricFraction;
+    benign_task_completed_prompt_hardening?: MetricFraction;
     benign_task_completed_gateway: MetricFraction;
+    benign_task_completed_both?: MetricFraction;
     false_blocks_total: number;
     false_block_rate: MetricFraction;
     block_counts_by_rule: Record<string, number>;
     violations_listed: Record<string, number>;
-    by_category: Record<string, { violated_none: number; violated_hardening?: number; violated_gateway: number; total: number }>;
+    by_category: Record<string, {
+        violated_none: number;
+        violated_hardening?: number;
+        violated_prompt_hardening?: number;
+        violated_gateway: number;
+        violated_both?: number;
+        total: number;
+    }>;
     replay: {
         replayed: number;
         consistent: number;

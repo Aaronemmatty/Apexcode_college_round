@@ -87,8 +87,9 @@ export default function Compare() {
   const chartData = Object.entries(data.by_category).map(([cat, stat]) => ({
     category: cat,
     'No defense': stat.violated_none,
-    'Hardening': stat.violated_hardening ?? 0,
-    'Gateway': stat.violated_gateway
+    'Hardening (Simulated)': stat.violated_prompt_hardening ?? stat.violated_hardening ?? 0,
+    'Gateway': stat.violated_gateway,
+    'Both': stat.violated_both ?? 0,
   }));
 
   const handleReplayAll = async () => {
@@ -186,41 +187,57 @@ export default function Compare() {
          )}
       </div>
 
-      {/* Headline Metric Cards */}
+      {/* Headline Metric Cards - 4 Defenses Side-by-Side */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2">
-            <CardDescription className="text-slate-400 font-medium">Attack Violated (No Defense)</CardDescription>
-            <CardTitle className="text-2xl font-bold text-red-400">
+            <div className="flex items-center justify-between">
+              <CardDescription className="text-slate-400 font-medium">1. Baseline (None)</CardDescription>
+              <Badge variant="outline" className="text-[10px] text-red-400 border-red-900/50">Undefended</Badge>
+            </div>
+            <CardTitle className="text-2xl font-bold text-red-400 mt-1">
               {formatRate(data.attack_violated_none.n, data.attack_violated_none.m)}
             </CardTitle>
+            <p className="text-[11px] text-slate-500 mt-1">Benign held: {formatRate(data.benign_held_none.n, data.benign_held_none.m)}</p>
           </CardHeader>
         </Card>
 
         <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2">
-            <CardDescription className="text-slate-400 font-medium">Residual with Hardening</CardDescription>
-            <CardTitle className="text-2xl font-bold text-amber-400">
-              {formatRate(data.attack_violated_hardening?.n || 0, data.attack_violated_hardening?.m || 0)}
+            <div className="flex items-center justify-between">
+              <CardDescription className="text-slate-400 font-medium">2. Prompt Hardening</CardDescription>
+              <Badge variant="outline" className="text-[10px] text-amber-400 border-amber-900/50">Simulated</Badge>
+            </div>
+            <CardTitle className="text-2xl font-bold text-amber-400 mt-1">
+              {formatRate(data.attack_violated_prompt_hardening?.n ?? data.attack_violated_hardening?.n ?? 0, data.attack_violated_prompt_hardening?.m ?? data.attack_violated_hardening?.m ?? 0)}
             </CardTitle>
+            <p className="text-[11px] text-slate-500 mt-1">Stops indirect/docs; user injections bypass</p>
           </CardHeader>
         </Card>
 
         <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2">
-            <CardDescription className="text-slate-400 font-medium">Residual with Gateway</CardDescription>
-            <CardTitle className="text-2xl font-bold text-emerald-400">
+            <div className="flex items-center justify-between">
+              <CardDescription className="text-slate-400 font-medium">3. Security Gateway</CardDescription>
+              <Badge variant="outline" className="text-[10px] text-blue-400 border-blue-900/50">Rule Policy</Badge>
+            </div>
+            <CardTitle className="text-2xl font-bold text-blue-400 mt-1">
               {formatRate(data.attack_violated_gateway.n, data.attack_violated_gateway.m)}
             </CardTitle>
+            <p className="text-[11px] text-slate-500 mt-1">2 broad-query residual attacks</p>
           </CardHeader>
         </Card>
 
         <Card className="bg-slate-900 border-slate-800 min-w-0">
           <CardHeader className="pb-2">
-            <CardDescription className="text-slate-400 font-medium">Benign Held (Gateway)</CardDescription>
-            <CardTitle className="text-2xl font-bold text-slate-200">
-              {formatRate(data.benign_held_gateway.n, data.benign_held_gateway.m)}
+            <div className="flex items-center justify-between">
+              <CardDescription className="text-slate-400 font-medium">4. Both (Hardening + GW)</CardDescription>
+              <Badge variant="outline" className="text-[10px] text-emerald-400 border-emerald-900/50">Combined</Badge>
+            </div>
+            <CardTitle className="text-2xl font-bold text-emerald-400 mt-1">
+              {formatRate(data.attack_violated_both?.n ?? 0, data.attack_violated_both?.m ?? data.attack_violated_none.m)}
             </CardTitle>
+            <p className="text-[11px] text-slate-500 mt-1">Defense in depth; 0 residual attacks</p>
           </CardHeader>
         </Card>
       </div>
@@ -246,9 +263,10 @@ export default function Compare() {
                   onChange={(e) => setDiffDefenseA(e.target.value)}
                   className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
                 >
-                  <option value="none" className="bg-slate-900">None</option>
-                  <option value="hardening" className="bg-slate-900">Prompt Hardening</option>
+                  <option value="none" className="bg-slate-900">No Defense</option>
+                  <option value="prompt_hardening" className="bg-slate-900">Prompt Hardening (Simulated)</option>
                   <option value="gateway" className="bg-slate-900">Security Gateway</option>
+                  <option value="both" className="bg-slate-900">Both (Hardening + Gateway)</option>
                 </select>
               </div>
 
@@ -262,8 +280,9 @@ export default function Compare() {
                   className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
                 >
                   <option value="gateway" className="bg-slate-900">Security Gateway</option>
-                  <option value="hardening" className="bg-slate-900">Prompt Hardening</option>
-                  <option value="none" className="bg-slate-900">None</option>
+                  <option value="both" className="bg-slate-900">Both (Hardening + Gateway)</option>
+                  <option value="prompt_hardening" className="bg-slate-900">Prompt Hardening (Simulated)</option>
+                  <option value="none" className="bg-slate-900">No Defense</option>
                 </select>
               </div>
 
@@ -477,8 +496,9 @@ export default function Compare() {
                   <RechartsTooltip contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }} />
                   <Legend wrapperStyle={{ paddingTop: '10px' }} />
                   <Bar dataKey="No defense" fill="#f87171" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Hardening" fill="#fbbf24" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Gateway" fill="#34d399" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Hardening (Simulated)" fill="#fbbf24" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Gateway" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Both" fill="#34d399" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -538,8 +558,9 @@ export default function Compare() {
                   <th className="px-4 py-3">No defense</th>
                   <th className="px-4 py-3">Prompt Hardening</th>
                   <th className="px-4 py-3">Security Gateway</th>
+                  <th className="px-4 py-3">Both</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 rounded-tr-lg">Blocked Rules (GW)</th>
+                  <th className="px-4 py-3 rounded-tr-lg">Blocked Rules</th>
                 </tr>
               </thead>
               <tbody>
@@ -594,6 +615,18 @@ export default function Compare() {
                               </Badge>
                             </Link>
                             {r.gateway.task_completed && <span className="text-[10px] text-emerald-400">Completed</span>}
+                          </div>
+                        ) : <span className="text-slate-500">-</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.both ? (
+                          <div className="flex flex-col gap-1">
+                            <Link to={`/trials/${r.both.trial_id}`} className="hover:underline inline-block w-fit">
+                              <Badge variant={r.both.verdict === 'violated' ? 'destructive' : 'default'} className={r.both.verdict === 'held' ? 'bg-emerald-500/20 text-emerald-400' : ''}>
+                                {r.both.verdict}
+                              </Badge>
+                            </Link>
+                            {r.both.task_completed && <span className="text-[10px] text-emerald-400">Completed</span>}
                           </div>
                         ) : <span className="text-slate-500">-</span>}
                       </td>

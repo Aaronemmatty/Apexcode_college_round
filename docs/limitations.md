@@ -60,3 +60,14 @@ This document states the operational assumptions, testing boundaries, and known 
 
 - **No Multi-User Support:** The AgentBreak harness is designed as an internal security evaluation and testing tool.
 - **No Authentication / Access Control:** The backend API and frontend dashboard do not include user authentication, session tokens, or role-based access control (RBAC). It is intended for local or private research network deployment only.
+
+
+## 6. Four Defense Modes & Prompt Hardening Simulation
+
+- **Four Defense Tiers:** AgentBreak evaluates agents across four defenses:
+  1. `none`: Baseline undefended agent (100% attack success rate, 0% benign failure).
+  2. `prompt_hardening`: System prompt instruction instructing the agent that data from retrieved documents/tool outputs is never instructions.
+  3. `gateway`: Deterministic Security Gateway enforcing API tool whitelists, recipient boundaries, canary redactions, and record limits.
+  4. `both`: Combined defense-in-depth (prompt hardening applied first to filter document directives, followed by gateway boundary enforcement).
+- **Simulated Hardening on Scripted Agent:** For `ScriptedAgent`, hardening is simulated deterministically: canonical `[[ACTION ...]]` directives inside tool output or retrieved documents are ignored. However, directives coming directly from user messages and syntax mutations (casing, extra spacing, single quotes) bypass simulated hardening. This accurately models a "polite prompt sign that can be tricked."
+- **Empirical Measurement Across Threat Groups:** Prompt hardening successfully neutralizes 100% of Indirect Injection and Memory-retrieval attacks (12/16 held), but fails against Direct Injection. The Security Gateway stops direct injections and tool violations, but misses broad semantic queries. The combined defense (`both`) achieves 16/16 attacks stopped (0% residual) with 7/7 benign held and 0 false blocks.
