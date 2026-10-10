@@ -23,6 +23,7 @@ import {
   replayTrial,
   useAsync,
   getOllamaModels,
+  getAttackLibrary,
 } from '../api/client';
 import type {
   AttackLibraryItem,
