@@ -20,6 +20,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import {
+  getAttackLibrary,
   postCustomAttack,
   replayTrial,
   useAsync,
@@ -73,7 +74,7 @@ export default function AttackLab() {
   let selectedItem: AttackLibraryItem | undefined;
   if (library && selectedScenarioId) {
     for (const groupItems of Object.values(library)) {
-      const match = groupItems.find((it) => it.scenario_id === selectedScenarioId);
+      const match = (groupItems as AttackLibraryItem[]).find((it: AttackLibraryItem) => it.scenario_id === selectedScenarioId);
       if (match) {
         selectedItem = match;
         break;
@@ -89,7 +90,7 @@ export default function AttackLab() {
     }
 
     for (const groupItems of Object.values(library)) {
-      const item = groupItems.find((it) => it.scenario_id === scenarioId);
+      const item = (groupItems as AttackLibraryItem[]).find((it: AttackLibraryItem) => it.scenario_id === scenarioId);
       if (item) {
         setText(item.payload_text);
         break;
@@ -229,7 +230,7 @@ export default function AttackLab() {
               <option value="">-- Choose an attack scenario from Library --</option>
               {Object.entries(library || {}).map(([groupName, items]) => (
                 <optgroup key={groupName} label={groupName} className="bg-slate-900 text-slate-300 font-sans font-bold">
-                  {items.map((it) => (
+                  {(items as AttackLibraryItem[]).map((it: AttackLibraryItem) => (
                     <option key={it.scenario_id} value={it.scenario_id} className="bg-slate-950 text-slate-200 font-mono font-normal">
                       [{it.severity}] {it.title}
                     </option>

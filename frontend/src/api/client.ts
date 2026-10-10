@@ -120,7 +120,7 @@ export function useAsync<T>(asyncFn: () => Promise<T>, dependencies: any[] = [])
   return { data, error, loading, reload: execute };
 }
 
-export const startCampaign = (body: { budget: number; seed: number; defense: string; seed_scenarios?: string[]; backend?: string }) =>
+export const startCampaign = (body: { budget: number; seed: number; defense: string; seed_scenarios?: string[]; backend?: string; backend_config?: Record<string, any> }) =>
   fetchApi<CampaignResult>('/api/campaigns', {
     method: 'POST',
     body: JSON.stringify(body),
