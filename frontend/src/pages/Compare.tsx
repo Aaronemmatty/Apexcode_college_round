@@ -8,8 +8,8 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { RunMatrixLauncher } from '../components/RunMatrixLauncher';
-import { Evaluation, Verdict } from '../types/evaluation';
-import { TraceResponse } from '../types/api';
+import type { Evaluation, Verdict } from '../types/evaluation';
+import type { TraceResponse } from '../types/api';
 
 export default function Compare() {
   const { data: scenarios, error: scenError, loading: scenLoading, reload: reloadScen } = useAsync(listScenarios);

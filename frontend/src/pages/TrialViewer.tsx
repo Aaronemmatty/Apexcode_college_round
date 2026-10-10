@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { AlertCircle, CheckCircle2, XCircle, Info, Copy, Loader2, FastForward, ShieldAlert, ShieldCheck, Terminal, Cpu, MessageSquare } from 'lucide-react';
-import { TraceEvent } from '../types/events';
-import { Verdict } from '../types/evaluation';
+import type { TraceEvent } from '../types/events';
+import type { Verdict } from '../types/evaluation';
 
 function SyntaxHighlighter({ content }: { content: string }) {
   const [expanded, setExpanded] = useState(false);
