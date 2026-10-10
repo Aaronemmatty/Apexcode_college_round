@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAsync, listScenarios, getScenario, createRun } from '../api/client';
+import { useToast } from '../context/ToastContext';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SeverityBadge } from '@/components/ui/severity-badge';
@@ -9,6 +10,7 @@ import { AlertCircle, X, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 function ScenarioDetailView({ taskId, onClose }: { taskId: string, onClose: () => void }) {
+  const { showToast } = useToast();
   const { data: detail, loading } = useAsync(() => getScenario(taskId), [taskId]);
   const [defense, setDefense] = useState<'none' | 'gateway' | 'both'>('none');
   const [running, setRunning] = useState(false);
@@ -21,7 +23,8 @@ function ScenarioDetailView({ taskId, onClose }: { taskId: string, onClose: () =
     try {
       if (defense === 'none' || defense === 'gateway') {
         const run = await createRun({ task_id: taskId, defense });
-        navigate(`/trials/${run.trials[0].trial_id}`);
+        showToast(`Run completed: ${run.trials[0].verdict ? run.trials[0].verdict.toUpperCase() : 'done'}`, run.trials[0].verdict === 'violated' ? 'error' : 'success');
+          navigate(`/trials/${run.trials[0].trial_id}`);
       } else if (defense === 'both') {
         const noneRun = await createRun({ task_id: taskId, defense: 'none' });
         const gwRun = await createRun({ task_id: taskId, defense: 'gateway' });

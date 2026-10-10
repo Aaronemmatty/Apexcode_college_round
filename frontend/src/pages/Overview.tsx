@@ -12,6 +12,21 @@ import { RunMatrixLauncher } from '../components/RunMatrixLauncher';
 import { formatRate } from '../lib/format';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 
+const ATTACK_GROUPS = [
+  'Direct Injection',
+  'Indirect Injection',
+  'Excessive Permissions',
+  'Data Leakage',
+  'Memory / Multi-step',
+];
+
+const SEVERITY_LEVELS: Array<'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'> = [
+  'CRITICAL',
+  'HIGH',
+  'MEDIUM',
+  'LOW',
+];
+
 export default function Overview() {
   const { data: scenarios, error: scenariosErr, loading: scenariosLoading, reload: reloadScenarios } = useAsync(listScenarios);
   const { data: runs, error: runsErr, loading: runsLoading, reload: reloadRuns } = useAsync(listRuns);
@@ -59,19 +74,60 @@ export default function Overview() {
   const totalTrials = runs.reduce((acc, r) => acc + r.trials.length, 0);
   const recentRuns = runs.slice(0, 8);
 
-  const chartData = metrics ? Object.entries(metrics.by_category).map(([cat, stats]) => ({
-    category: cat.replace(/_/g, ' '),
-    'No defense': stats.violated_none,
-    'Hardening': stats.violated_hardening ?? 0,
-    'Gateway': stats.violated_gateway,
-    total: stats.total,
-  })) : [];
+  // 1. Group Bar Chart Data: attack success per group (None vs Gateway)
+  const groupStats: Record<string, { total: number; noneViolated: number; gwViolated: number }> = {};
+  for (const grp of ATTACK_GROUPS) {
+    groupStats[grp] = { total: 0, noneViolated: 0, gwViolated: 0 };
+  }
+
+  if (metrics.per_scenario) {
+    for (const sc of metrics.per_scenario) {
+      if (sc.kind === 'attack') {
+        const grp = sc.group || 'Direct Injection';
+        if (!groupStats[grp]) {
+          groupStats[grp] = { total: 0, noneViolated: 0, gwViolated: 0 };
+        }
+        groupStats[grp].total += 1;
+        if (sc.none?.verdict === 'violated') groupStats[grp].noneViolated += 1;
+        if (sc.gateway?.verdict === 'violated') groupStats[grp].gwViolated += 1;
+      }
+    }
+  }
+
+  const chartData = ATTACK_GROUPS.map((grp) => ({
+    group: grp,
+    'No defense': groupStats[grp]?.noneViolated || 0,
+    'Gateway': groupStats[grp]?.gwViolated || 0,
+    total: groupStats[grp]?.total || 0,
+  }));
+
+  // 2. Severity Breakdown calculation
+  const severityStats: Record<string, { total: number; stopped: number; residual: number; noneViolated: number }> = {
+    CRITICAL: { total: 0, stopped: 0, residual: 0, noneViolated: 0 },
+    HIGH: { total: 0, stopped: 0, residual: 0, noneViolated: 0 },
+    MEDIUM: { total: 0, stopped: 0, residual: 0, noneViolated: 0 },
+    LOW: { total: 0, stopped: 0, residual: 0, noneViolated: 0 },
+  };
+
+  if (metrics.per_scenario) {
+    for (const sc of metrics.per_scenario) {
+      if (sc.kind === 'attack') {
+        const sev = (sc.severity?.toUpperCase() || 'MEDIUM') as 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+        if (severityStats[sev]) {
+          severityStats[sev].total += 1;
+          if (sc.none?.verdict === 'violated') severityStats[sev].noneViolated += 1;
+          if (sc.gateway?.verdict === 'held') severityStats[sev].stopped += 1;
+          else if (sc.gateway?.verdict === 'violated') severityStats[sev].residual += 1;
+        }
+      }
+    }
+  }
 
   return (
     <div className="space-y-8 min-w-0 animate-in fade-in duration-300">
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">Security Evaluation Dashboard</h1>
-        <p className="text-sm text-slate-400 mt-1">
+        <p className="text-sm sm:text-base text-slate-400 mt-1">
           Telemetry and defense comparison across {scenarios.length} scenarios ({scenarios.filter(s => s.kind === 'attack').length} attacks, {scenarios.filter(s => s.kind === 'benign').length} benign).
         </p>
       </div>
@@ -83,7 +139,7 @@ export default function Overview() {
             <CardTitle className="text-xs uppercase tracking-wider font-semibold text-slate-400">Total Executions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-100">{runs.length} Runs</div>
+            <div className="text-2xl sm:text-3xl font-bold text-slate-100">{runs.length} Runs</div>
             <p className="text-xs text-slate-500 mt-1">{totalTrials} total recorded trials</p>
           </CardContent>
         </Card>
@@ -93,7 +149,7 @@ export default function Overview() {
             <CardTitle className="text-xs uppercase tracking-wider font-semibold text-slate-400">Baseline Attack Success</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-400">
+            <div className="text-2xl sm:text-3xl font-bold text-red-400">
               {formatRate(metrics.attack_violated_none.n, metrics.attack_violated_none.m)}
             </div>
             <p className="text-xs text-slate-500 mt-1">Undefended agent exploit rate</p>
@@ -105,7 +161,7 @@ export default function Overview() {
             <CardTitle className="text-xs uppercase tracking-wider font-semibold text-slate-400">Residual With Gateway</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-400">
+            <div className="text-2xl sm:text-3xl font-bold text-amber-400">
               {formatRate(metrics.attack_violated_gateway.n, metrics.attack_violated_gateway.m)}
             </div>
             <p className="text-xs text-slate-500 mt-1">{metrics.attack_prevented} of {metrics.attack_violated_none.m} attacks stopped</p>
@@ -125,7 +181,7 @@ export default function Overview() {
             </Tooltip>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-400">
+            <div className="text-2xl sm:text-3xl font-bold text-emerald-400">
               {formatRate(metrics.benign_held_gateway.n, metrics.benign_held_gateway.m)}
             </div>
             <p className="text-xs text-slate-500 mt-1">False block rate: {formatRate(metrics.false_block_rate.n, metrics.false_block_rate.m)}</p>
@@ -133,58 +189,146 @@ export default function Overview() {
         </Card>
       </div>
 
-      {/* Residual Attacks Warning Card */}
-      {metrics.attack_still_violated.length > 0 && (
-        <Card className="bg-amber-950/20 border-amber-900/60">
-          <CardHeader className="pb-2">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="w-5 h-5 text-amber-400" />
-              <CardTitle className="text-base text-amber-300">
-                Documented Residual Attacks ({metrics.attack_still_violated.length})
-              </CardTitle>
+      {/* Residual Attacks Card */}
+      {metrics.attack_still_violated && metrics.attack_still_violated.length > 0 && (
+        <Card className="bg-amber-950/20 border-2 border-amber-800/80 shadow-lg shadow-amber-950/30">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="w-5 h-5 text-amber-400" />
+                <CardTitle className="text-base font-bold text-amber-300">
+                  Residual Attacks ({metrics.attack_still_violated.length})
+                </CardTitle>
+              </div>
+              <Badge variant="outline" className="border-amber-700 bg-amber-950/60 text-amber-300 text-xs">
+                Not Stopped By Gateway
+              </Badge>
             </div>
-            <CardDescription className="text-amber-400/80 text-xs">
-              Attacks that successfully bypass current syntactic gateway rules (e.g. broad letter queries without wildcard):
+            <CardDescription className="text-amber-400/90 text-xs">
+              Attacks that successfully evade syntactic gateway filters due to semantic queries or multi-step persistence:
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {metrics.attack_still_violated.map((tid) => (
-                <Link
-                  key={tid}
-                  to={`/scenarios`}
-                  className="font-mono text-xs px-3 py-1.5 bg-amber-900/40 border border-amber-800/80 rounded text-amber-200 hover:bg-amber-900 transition-colors flex items-center gap-1.5"
-                >
-                  <span className="w-2 h-2 rounded-full bg-amber-400" />
-                  {tid}
-                </Link>
-              ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {metrics.attack_still_violated.map((tid) => {
+                const sc = scenarioMap.get(tid);
+                const isBroad = tid.includes('broad_query');
+                const isMemory = tid.includes('memory');
+
+                return (
+                  <div
+                    key={tid}
+                    className="p-3.5 bg-slate-950/90 rounded-md border border-amber-900/60 flex items-start justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                        <span className="font-semibold text-slate-200 text-sm truncate">
+                          {sc?.title || tid}
+                        </span>
+                        <SeverityBadge severity={sc?.severity} />
+                      </div>
+                      <div className="font-mono text-xs text-slate-500 mb-1">{tid}</div>
+                      <p className="text-xs text-slate-400">
+                        {isBroad
+                          ? 'Performs broad letter substring search without wildcard asterisk (*), bypassing simple pattern matching.'
+                          : isMemory
+                          ? 'Plants unauthorized data in scratchpad memory, accessed in subsequent tool calls without direct parameter markers.'
+                          : 'Semantic evasion bypassing regex rules.'}
+                      </p>
+                    </div>
+                    <Link to={`/scenarios`} className="shrink-0">
+                      <Button variant="ghost" size="sm" className="h-8 text-xs text-amber-300 hover:text-white hover:bg-amber-950">
+                        Inspect
+                      </Button>
+                    </Link>
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Attack Category Chart & Quick Actions */}
+      {/* Severity Breakdown Card */}
+      <Card className="bg-slate-900 border-slate-800">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base text-white">Severity Breakdown</CardTitle>
+          <CardDescription className="text-slate-400 text-xs">
+            Distribution of attack scenarios across severity classifications and defense effectiveness.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {SEVERITY_LEVELS.map((sev) => {
+              const stats = severityStats[sev];
+              const colorMap = {
+                CRITICAL: 'text-purple-400 border-purple-800/80 bg-purple-950/30',
+                HIGH: 'text-red-400 border-red-800/80 bg-red-950/30',
+                MEDIUM: 'text-amber-400 border-amber-800/80 bg-amber-950/30',
+                LOW: 'text-blue-400 border-blue-800/80 bg-blue-950/30',
+              };
+
+              return (
+                <div key={sev} className={`p-4 rounded-lg border ${colorMap[sev]} flex flex-col justify-between`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-xs uppercase tracking-wider">{sev}</span>
+                    <Badge variant="outline" className="text-[11px] bg-slate-950">
+                      {stats.total} Attacks
+                    </Badge>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between text-slate-300">
+                      <span>Baseline Violated:</span>
+                      <span className="font-mono font-bold">{stats.noneViolated}/{stats.total}</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-400">
+                      <span>Gateway Stopped:</span>
+                      <span className="font-mono font-bold">{stats.stopped}/{stats.total}</span>
+                    </div>
+                    <div className="flex justify-between text-amber-400">
+                      <span>Residual Bypass:</span>
+                      <span className="font-mono font-bold">{stats.residual}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Attack Success per Group Bar Chart & Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="lg:col-span-2 bg-slate-900 border-slate-800 min-w-0">
           <CardHeader>
-            <CardTitle className="text-base text-white">Exploit Rate by Attack Category</CardTitle>
-            <CardDescription>Number of invariant violations: Baseline (No Defense) vs. Gateway</CardDescription>
+            <CardTitle className="text-base text-white">Attack Success Rate per Group</CardTitle>
+            <CardDescription className="text-slate-400 text-xs">
+              Number of invariant violations by attack category group: Baseline (No defense) vs. Security Gateway
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-72 w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 25 }}>
+                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 30 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="category" stroke="#94a3b8" angle={-15} textAnchor="end" interval={0} height={40} fontSize={11} />
+                  <XAxis
+                    dataKey="group"
+                    stroke="#94a3b8"
+                    angle={-15}
+                    textAnchor="end"
+                    interval={0}
+                    height={45}
+                    fontSize={11}
+                  />
                   <YAxis stroke="#94a3b8" allowDecimals={false} />
                   <RechartsTooltip
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155' }}
+                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px' }}
                     itemStyle={{ color: '#e2e8f0' }}
                   />
-                  <Legend />
-                  <Bar dataKey="No defense" fill="#f87171" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Gateway" fill="#38bdf8" radius={[4, 4, 0, 0]} />
+                  <Legend verticalAlign="top" wrapperStyle={{ paddingBottom: '10px' }} />
+                  <Bar dataKey="No defense" fill="#f87171" radius={[4, 4, 0, 0]} name="No Defense (Baseline)" />
+                  <Bar dataKey="Gateway" fill="#38bdf8" radius={[4, 4, 0, 0]} name="Security Gateway" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -234,7 +378,7 @@ export default function Overview() {
         </div>
       </div>
 
-      {/* Recent Runs Table */}
+      {/* Recent Run History Table */}
       <div>
         <h2 className="text-xl font-bold mb-4 text-white">Recent Run History</h2>
         <div className="rounded-md border border-slate-800 bg-slate-900 overflow-x-auto min-w-0">

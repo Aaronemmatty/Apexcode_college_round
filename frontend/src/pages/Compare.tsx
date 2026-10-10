@@ -12,6 +12,38 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
 import { RunMatrixLauncher } from '../components/RunMatrixLauncher';
 import { formatRate } from '../lib/format';
 
+function renderStatusChip(noneVerdict?: string, gwVerdict?: string) {
+  if (!noneVerdict || !gwVerdict) {
+    return <span className="text-slate-500 italic text-xs">Incomplete</span>;
+  }
+  if (noneVerdict === 'violated' && gwVerdict === 'held') {
+    return (
+      <Badge className="bg-emerald-950 text-emerald-400 border border-emerald-800 font-semibold text-xs">
+        Fixed
+      </Badge>
+    );
+  }
+  if (noneVerdict === 'violated' && gwVerdict === 'violated') {
+    return (
+      <Badge className="bg-red-950 text-red-400 border border-red-800 font-semibold text-xs">
+        Still violated
+      </Badge>
+    );
+  }
+  if (noneVerdict === 'held' && gwVerdict === 'violated') {
+    return (
+      <Badge className="bg-rose-950 text-rose-400 border border-rose-800 font-semibold text-xs">
+        Newly violated
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-slate-400 bg-slate-900 border-slate-700 text-xs">
+      Same
+    </Badge>
+  );
+}
+
 export default function Compare() {
   const { data, error, loading, reload } = useAsync(getCompare);
   const [filter, setFilter] = useState<'all' | 'attack' | 'benign' | 'diff'>('all');
@@ -394,22 +426,24 @@ export default function Compare() {
                         </td>
                         <td className="px-3 py-2">
                           {d.status === 'fixed' && (
-                            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-[10px]">
-                              FIXED
+                            <Badge className="bg-emerald-950 text-emerald-400 border border-emerald-800 text-[10px] font-semibold">
+                              Fixed
                             </Badge>
                           )}
                           {d.status === 'still_violated' && (
-                            <Badge variant="destructive" className="bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px]">
-                              STILL VIOLATED
+                            <Badge className="bg-red-950 text-red-400 border border-red-800 text-[10px] font-semibold">
+                              Still violated
                             </Badge>
                           )}
                           {d.status === 'newly_violated' && (
-                            <Badge variant="destructive" className="bg-red-500/20 text-red-400 border-red-500/30 text-[10px]">
-                              NEWLY VIOLATED
+                            <Badge className="bg-rose-950 text-rose-400 border border-rose-800 text-[10px] font-semibold">
+                              Newly violated
                             </Badge>
                           )}
                           {d.status === 'held' && (
-                            <span className="text-slate-400 font-mono text-[11px]">HELD</span>
+                            <Badge variant="outline" className="text-slate-400 bg-slate-900 border-slate-700 text-[10px]">
+                              Same
+                            </Badge>
                           )}
                         </td>
                       </tr>
@@ -504,7 +538,7 @@ export default function Compare() {
                   <th className="px-4 py-3">No defense</th>
                   <th className="px-4 py-3">Prompt Hardening</th>
                   <th className="px-4 py-3">Security Gateway</th>
-                  <th className="px-4 py-3">Gateway Efficacy</th>
+                  <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3 rounded-tr-lg">Blocked Rules (GW)</th>
                 </tr>
               </thead>
@@ -564,10 +598,7 @@ export default function Compare() {
                         ) : <span className="text-slate-500">-</span>}
                       </td>
                       <td className="px-4 py-3">
-                        {r.change === 'prevented' && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Prevented</Badge>}
-                        {r.change === 'still_violated' && <Badge variant="destructive" className="bg-red-500/20 text-red-400 border-red-500/30">Still violated</Badge>}
-                        {r.change === 'no_change' && <span className="text-slate-500">No change</span>}
-                        {r.change === 'incomplete' && <span className="text-slate-600 italic">Incomplete</span>}
+                        {renderStatusChip(r.none?.verdict, r.gateway?.verdict)}
                       </td>
                       <td className="px-4 py-3 max-w-[200px] truncate text-xs font-mono text-slate-400">
                          {r.gateway ? (r.gateway.blocked_rule_ids.length > 0 ? r.gateway.blocked_rule_ids.join(', ') : 'none') : '-'}

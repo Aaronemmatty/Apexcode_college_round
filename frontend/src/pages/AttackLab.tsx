@@ -1,3 +1,4 @@
+import { useToast } from '../context/ToastContext';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -42,6 +43,7 @@ interface HistoryItem {
 }
 
 export default function AttackLab() {
+  const { showToast } = useToast();
   const { data: library, loading: libraryLoading, error: libraryError } = useAsync(getAttackLibrary);
 
   const [text, setText] = useState<string>('');
@@ -112,6 +114,7 @@ export default function AttackLab() {
         seed,
       });
       setResult(res);
+      showToast(`Custom attack finished: ${res.verdict.toUpperCase()}${res.severity ? ` (${res.severity})` : ''}`, res.verdict === 'violated' ? 'error' : 'success');
 
       // Add to session history
       const historyEntry: HistoryItem = {

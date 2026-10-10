@@ -121,6 +121,9 @@ export interface CompareMetrics {
 
 
 export interface CampaignAttempt {
+  task_id?: string;
+  operator?: string;
+  is_valid?: boolean;
   attempt_number: number;
   trial_id: string;
   run_id: string;
@@ -170,6 +173,11 @@ export interface RegressionDiffResponse {
 
 export interface CampaignResult {
   campaign_id: string;
+  valid?: number;
+  invalid?: number;
+  blocked?: number;
+  bypasses_by_operator?: Record<string, number>;
+  rules_that_blocked_most?: Record<string, number>;
   defense: string;
   budget: number;
   seed: number;

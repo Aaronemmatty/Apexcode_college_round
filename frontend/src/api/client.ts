@@ -170,3 +170,23 @@ export const postCustomAttack = (body: {
     method: 'POST',
     body: JSON.stringify(body),
   });
+
+export const rerunCampaignBypasses = (campaignId: string, defense: string = 'gateway') =>
+  fetchApi<{
+    campaign_id: string;
+    defense: string;
+    total_bypasses: number;
+    fixed_count: number;
+    still_violated_count: number;
+    results: Array<{
+      task_id: string;
+      trial_id: string;
+      run_id: string;
+      operator: string;
+      previous_severity: string;
+      verdict: string;
+      status: string;
+    }>;
+  }>(`/api/campaigns/${encodeURIComponent(campaignId)}/rerun-bypasses?defense=${encodeURIComponent(defense)}`, {
+    method: 'POST',
+  });

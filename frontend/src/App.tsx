@@ -11,6 +11,7 @@ import Campaign from './pages/Campaign';
 import Report from './pages/Report';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { ToastProvider } from './context/ToastContext';
 
 function NotFound() {
   return (
@@ -108,6 +109,7 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
+    <ToastProvider>
     <Router>
       <TitleManager />
       <div className="flex h-screen bg-slate-900 text-slate-100 overflow-hidden font-sans">
@@ -151,5 +153,6 @@ export default function App() {
         </main>
       </div>
     </Router>
+    </ToastProvider>
   );
 }

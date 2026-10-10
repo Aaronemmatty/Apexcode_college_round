@@ -3,8 +3,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Loader2, AlertCircle, PlayCircle } from 'lucide-react';
 import { createRun, listScenarios } from '../api/client';
+import { useToast } from '../context/ToastContext';
 
 export function RunMatrixLauncher({ onComplete }: { onComplete: () => void }) {
+  const { showToast } = useToast();
   const [running, setRunning] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -48,6 +50,7 @@ export function RunMatrixLauncher({ onComplete }: { onComplete: () => void }) {
     } finally {
       setRunning(false);
       setConfirm(false);
+      showToast('Benchmark matrix run completed!', 'success');
       onComplete();
     }
   };

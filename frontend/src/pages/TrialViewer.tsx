@@ -162,9 +162,11 @@ export default function TrialViewer() {
 
   const evidenceEventIds = new Set<string>();
   evaluation.invariants.forEach(inv => {
-    inv.evidence.forEach(ev => {
-      ev.event_ids.forEach(id => evidenceEventIds.add(id));
-    });
+    if (inv.status === 'violated') {
+      inv.evidence.forEach(ev => {
+        ev.event_ids.forEach(id => evidenceEventIds.add(id));
+      });
+    }
   });
 
   // Grouping handled by EventTimeline component
