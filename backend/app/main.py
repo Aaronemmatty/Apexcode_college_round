@@ -15,6 +15,7 @@ from app.api.compare import router as compare_router
 from app.api.campaigns import router as campaigns_router
 from app.api.custom_attack import router as custom_attack_router
 from app.api.ollama import router as ollama_router
+from app.api.audit import router as audit_router
 from app.config import settings
 from app.db.session import init_db
 
@@ -92,3 +93,4 @@ app.include_router(compare_router, prefix="/api")
 app.include_router(campaigns_router, prefix="/api")
 app.include_router(custom_attack_router, prefix="/api")
 app.include_router(ollama_router, prefix="/api")
+app.include_router(audit_router, prefix="/api")

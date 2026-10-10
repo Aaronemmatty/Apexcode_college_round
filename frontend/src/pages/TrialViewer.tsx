@@ -11,6 +11,7 @@ import { AlertCircle, Copy, Loader2, FastForward } from 'lucide-react';
 import type { Verdict } from '../types/evaluation';
 
 import EventTimeline from '@/components/EventTimeline';
+import AttackGraph from '@/components/AttackGraph';
 
 function ReplaySection({ trialId }: { trialId: string }) {
   const [loading, setLoading] = useState(false);
@@ -286,6 +287,12 @@ export default function TrialViewer() {
         </div>
 
         <div className="flex-1 w-full space-y-8">
+          <AttackGraph
+            events={trace}
+            verdict={evaluation.verdict}
+            violatedInvariants={evaluation.invariants.filter((i: any) => i.status === 'violated').map((i: any) => i.invariant_id)}
+            defense={runContext?.defense || 'none'}
+          />
           <EventTimeline events={trace} evidenceEventIds={evidenceEventIds} />
         </div>
       </div>

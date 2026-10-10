@@ -241,3 +241,35 @@ export interface CustomAttackResult {
   evaluation: any;
   events: TraceEvent[];
 }
+
+
+export interface ToolAbuseMapping {
+  scenario_id: string;
+  title: string;
+  severity: string;
+  category: string;
+  abuse_vector: string;
+}
+
+export interface ToolAuditItem {
+  name: string;
+  description: string;
+  capabilities: string;
+  task_scope: string;
+  risk_level: string;
+  risk_notes: string;
+  governing_rules: string[];
+  attack_count: number;
+  abused_by_attacks: ToolAbuseMapping[];
+}
+
+export interface PermissionAuditResponse {
+  tools: ToolAuditItem[];
+  summary: {
+    total_tools: number;
+    critical_risk_tools: number;
+    high_risk_tools: number;
+    medium_risk_tools: number;
+    total_attack_mappings: number;
+  };
+}

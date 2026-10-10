@@ -9,6 +9,7 @@ import {
   listScenarios,
   useAsync,
   getOllamaModels,
+  downloadCampaignReport,
 } from '../api/client';
 import type { CampaignResult, CampaignAttempt } from '../types/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -26,6 +27,7 @@ import {
   ChevronDown,
   ChevronUp,
   History,
+  Download,
 } from 'lucide-react';
 import { useToast } from '../context/ToastContext';
 
@@ -146,6 +148,20 @@ export default function Campaign() {
 
   const [batchDefense, setBatchDefense] = useState<string>('gateway');
   const [batchRerunning, setBatchRerunning] = useState<boolean>(false);
+    const [exportingReport, setExportingReport] = useState(false);
+
+  const handleExportReport = async () => {
+    if (!currentCampaign) return;
+    setExportingReport(true);
+    try {
+      await downloadCampaignReport(currentCampaign.campaign_id);
+      showToast(`Exported campaign report (${currentCampaign.campaign_id}.md)`, 'success');
+    } catch (err: any) {
+      showToast(`Failed to export report: ${err.message || err}`, 'error');
+    } finally {
+      setExportingReport(false);
+    }
+  };
   const [batchSummary, setBatchSummary] = useState<{ now_held: number; still_violated: number } | null>(null);
 
   const handleBatchRerun = async () => {
@@ -495,12 +511,28 @@ export default function Campaign() {
         <div className="space-y-6">
           {/* Summary Cards */}
           <div>
-            <h2 className="text-lg font-bold text-slate-200 mb-3 flex items-center gap-2">
-              <span>Campaign Results</span>
-              <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-800 text-purple-300 border border-slate-700">
-                {currentCampaign.campaign_id}
-              </span>
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-bold text-slate-200 flex items-center gap-2">
+                  <span>Campaign Results</span>
+                  <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-800 text-purple-300 border border-slate-700">
+                    {currentCampaign.campaign_id}
+                  </span>
+                </h2>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleExportReport}
+                  disabled={exportingReport}
+                  className="border-slate-700 hover:bg-slate-800 text-slate-300 text-xs font-mono"
+                >
+                  {exportingReport ? (
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5 mr-1.5" />
+                  )}
+                  Export Report (.md)
+                </Button>
+              </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               <Card className="bg-slate-900 border-slate-800">
                 <CardContent className="pt-4 pb-4">

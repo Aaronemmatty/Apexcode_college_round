@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Home, List, ArrowLeftRight, Terminal, Sparkles, FileText, Menu } from 'lucide-react';
+import { Home, List, ArrowLeftRight, Terminal, Sparkles, FileText, Menu, ShieldCheck } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { getHealth, useAsync } from './api/client';
 import Overview from './pages/Overview';
@@ -9,6 +9,7 @@ import Compare from './pages/Compare';
 import AttackLab from './pages/AttackLab';
 import Campaign from './pages/Campaign';
 import Report from './pages/Report';
+import PermissionAudit from './pages/PermissionAudit';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ToastProvider } from './context/ToastContext';
@@ -34,6 +35,7 @@ function TitleManager() {
     else if (p.startsWith('/attack-lab')) document.title = 'AgentBreak | Attack Lab';
     else if (p.startsWith('/campaign')) document.title = 'AgentBreak | Campaign';
     else if (p.startsWith('/compare')) document.title = 'AgentBreak | Compare';
+    else if (p.startsWith('/audit')) document.title = 'AgentBreak | Permission Audit';
     else if (p.startsWith('/report')) document.title = 'AgentBreak | Report';
     else if (p.startsWith('/trials')) document.title = 'AgentBreak | Trial Viewer';
     else document.title = 'AgentBreak | Not Found';
@@ -51,6 +53,7 @@ function Sidebar() {
     { to: '/scenarios', label: 'Scenarios', icon: List, color: 'text-amber-400' },
     { to: '/attack-lab', label: 'Attack Lab', icon: Terminal, color: 'text-emerald-400' },
     { to: '/campaign', label: 'Campaign', icon: Sparkles, color: 'text-purple-400' },
+    { to: '/audit', label: 'Permission Audit', icon: ShieldCheck, color: 'text-teal-400' },
     { to: '/compare', label: 'Compare', icon: ArrowLeftRight, color: 'text-cyan-400' },
     { to: '/report', label: 'Report', icon: FileText, color: 'text-rose-400' },
   ];
@@ -141,6 +144,7 @@ export default function App() {
               <Route path="/scenarios" element={<Scenarios />} />
               <Route path="/attack-lab" element={<AttackLab />} />
               <Route path="/campaign" element={<Campaign />} />
+              <Route path="/audit" element={<PermissionAudit />} />
               <Route path="/compare" element={<Compare />} />
               <Route path="/report" element={<Report />} />
               <Route path="/trials/:trialId" element={<TrialViewer />} />
