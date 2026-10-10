@@ -153,6 +153,7 @@ export interface CampaignAttempt {
   severity: string;
   blocked_rules: string[];
   is_bypass: boolean;
+  fix_suggestions?: string[];
   regression_scenario_id?: string;
   regression_scenario_file?: string;
   regression_scenario_name?: string;
@@ -234,6 +235,7 @@ export interface CustomAttackResult {
   backend?: string;
   summary?: string | null;
   fallback_notice?: string | null;
+  fix_suggestions?: string[];
   run: any;
   trial: any;
   evaluation: any;

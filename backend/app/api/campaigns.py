@@ -11,6 +11,7 @@ from app.db.models import CampaignRow
 from app.db.session import get_db
 from app.discovery.campaign import run_discovery_campaign
 from app.orchestrator import execute_run
+from app.evaluator.remediation import get_fix_suggestions
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
@@ -95,8 +96,12 @@ def rerun_campaign_bypasses(
         eval_row = trial_row.evaluation
         verdict = eval_row.verdict if eval_row else "inconclusive"
 
+        eval_data = json.loads(eval_row.result_json) if eval_row and eval_row.result_json else {}
+        violated_invariants = [inv.get("invariant_id") for inv in eval_data.get("invariants", []) if inv.get("status") == "violated"]
+        fix_suggestions = get_fix_suggestions(violated_invariants)
+
         if verdict == "held":
-            status = "fixed"
+            status = "now_held"
             fixed_count += 1
         elif verdict == "violated":
             status = "still_violated"
@@ -112,6 +117,8 @@ def rerun_campaign_bypasses(
             "previous_severity": bp.get("severity", "MEDIUM"),
             "verdict": verdict,
             "status": status,
+            "now_held": status == "now_held",
+            "fix_suggestions": fix_suggestions,
         })
 
     return {
@@ -119,6 +126,7 @@ def rerun_campaign_bypasses(
         "defense": defense,
         "total_bypasses": len(bypasses),
         "fixed_count": fixed_count,
+        "now_held_count": fixed_count,
         "still_violated_count": still_violated_count,
         "results": results,
     }

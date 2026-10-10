@@ -294,3 +294,40 @@ def test_campaign_api_endpoints(client, test_db):
     assert "fixed_count" in rerun_data
     assert "still_violated_count" in rerun_data
     assert rerun_data["still_violated_count"] == len(detail["bypasses"])
+
+
+def test_rerun_campaign_bypasses_endpoint(client, test_db):
+    """POST /api/campaigns/{id}/rerun-bypasses reruns bypasses against defense and does not alter benchmark metrics."""
+    # Initial benchmark metrics
+    metrics_before = get_compare_metrics(test_db)
+
+    # Run campaign that finds bypasses
+    camp = run_discovery_campaign(
+        db=test_db,
+        budget=20,
+        seed=42,
+        defense="none",
+        seed_scenarios=["excessive_access_wildcard"],
+    )
+    assert camp["bypasses_found"] >= 1
+    cid = camp["campaign_id"]
+
+    # Call rerun-bypasses against gateway
+    resp = client.post(f"/api/campaigns/{cid}/rerun-bypasses?defense=gateway")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert data["campaign_id"] == cid
+    assert data["total_bypasses"] == camp["bypasses_found"]
+    assert "now_held_count" in data
+    assert "still_violated_count" in data
+    assert len(data["results"]) == camp["bypasses_found"]
+
+    for r in data["results"]:
+        assert r["status"] in ("now_held", "still_violated")
+        assert "fix_suggestions" in r
+
+    # Crucial rule: Campaign bypass reruns must NEVER alter canonical benchmark metrics
+    metrics_after = get_compare_metrics(test_db)
+    assert metrics_after["attack_violated_none"] == metrics_before["attack_violated_none"]
+    assert metrics_after["attack_violated_gateway"] == metrics_before["attack_violated_gateway"]

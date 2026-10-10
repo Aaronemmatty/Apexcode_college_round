@@ -8,6 +8,7 @@ from typing import Any, Optional
 
 from app.events import Decision, EventType, ExecutionStatus, Source, TraceEvent
 from app.evaluator.models import Evaluation, EvidenceItem, InvariantResult, Verdict, Severity
+from app.evaluator.remediation import get_fix_suggestions
 from app.sandbox.data import SENSITIVE_MARKERS
 
 
@@ -283,6 +284,9 @@ def evaluate_trial(
                 except Exception:
                     severity = Severity.LOW
 
+        violated_ids = [inv.invariant_id for inv in invariants if inv.status == "violated"]
+        fix_suggestions = get_fix_suggestions(violated_ids)
+
         return Evaluation(
             trial_id=str(trial_id or 'unknown'),
             verdict=verdict,
@@ -291,6 +295,7 @@ def evaluate_trial(
             task_completed=task_completed,
             false_blocks=false_blocks,
             notes=notes,
+            fix_suggestions=fix_suggestions,
         )
 
     except Exception as exc:

@@ -1,12 +1,18 @@
-"""Trials, traces, and evaluations API endpoints."""
+﻿"""Trials, traces, and evaluations API endpoints."""
 
+import json
+import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.db.models import EvaluationRow, EventRow, TrialRow
+from app.agent.tasks import get_task
+from app.db.models import EvaluationRow, EventRow, ReplayRow, TrialRow
 from app.db.session import get_db
+from app.evaluator.remediation import get_fix_suggestions
+from app.evaluator.severity import derive_severity
 from app.events import TraceEvent
-from app.schemas import EvaluationResponse, TrialTraceResponse
+from app.orchestrator import simulate_trial
+from app.schemas import EvaluationResponse, ReplayReport, ReplayResponse, TrialTraceResponse
 
 router = APIRouter(prefix="/trials", tags=["trials"])
 
@@ -57,26 +63,20 @@ def get_trial_evaluation(trial_id: str, db: Session = Depends(get_db)) -> Evalua
             detail=f"No evaluation found for trial '{trial_id}'.",
         )
 
-    from app.evaluator.severity import derive_severity
-    import json
     base = EvaluationResponse.model_validate_json(eval_row.result_json)
     violated_ids = [inv.invariant_id for inv in base.invariants if inv.status == "violated"]
     base.severity = derive_severity(violated_ids)
+    if not base.fix_suggestions and violated_ids:
+        base.fix_suggestions = get_fix_suggestions(violated_ids)
     return base
 
-import uuid
-import json
-from app.db.models import ReplayRow
-from app.schemas import ReplayResponse, ReplayReport
-from app.orchestrator import simulate_trial
-from app.agent.tasks import get_task
 
 @router.post("/{trial_id}/replay", response_model=ReplayResponse)
 def create_replay(trial_id: str, db: Session = Depends(get_db)) -> ReplayResponse:
     trial = db.query(TrialRow).filter(TrialRow.trial_id == trial_id).first()
     if not trial:
         raise HTTPException(status_code=404, detail="Trial not found.")
-        
+
     run = trial.run
     task = get_task(trial.task_id, db=db)
     if not task:
@@ -105,9 +105,9 @@ def create_replay(trial_id: str, db: Session = Depends(get_db)) -> ReplayRespons
         saved_replies=saved_replies,
     )
     replay_events = simulated.events
-    
+
     differences = []
-    
+
     def strip_varying(e: TraceEvent) -> dict:
         d = e.model_dump(exclude_none=True)
         for k in ["event_id", "run_id", "trial_id", "timestamp"]:
@@ -115,7 +115,7 @@ def create_replay(trial_id: str, db: Session = Depends(get_db)) -> ReplayRespons
         if "result" in d and isinstance(d["result"], dict) and "message_id" in d["result"]:
             d["result"].pop("message_id")
         return d
-        
+
     for i, (orig, repl) in enumerate(zip(original_events, replay_events)):
         orig_d = strip_varying(orig)
         repl_d = strip_varying(repl)
@@ -132,7 +132,7 @@ def create_replay(trial_id: str, db: Session = Depends(get_db)) -> ReplayRespons
         original_event_count=len(original_events),
         replay_event_count=len(replay_events),
         original_verdict=original_verdict,
-        replay_verdict=simulated.evaluation.verdict.value
+        replay_verdict=simulated.evaluation.verdict.value,
     )
 
     replay_id = f"replay_{uuid.uuid4().hex[:8]}"
@@ -140,7 +140,7 @@ def create_replay(trial_id: str, db: Session = Depends(get_db)) -> ReplayRespons
         replay_id=replay_id,
         original_trial_id=trial.trial_id,
         consistent=consistent,
-        report=report.model_dump_json()
+        report=report.model_dump_json(),
     )
     db.add(replay_row)
     db.commit()
@@ -151,8 +151,9 @@ def create_replay(trial_id: str, db: Session = Depends(get_db)) -> ReplayRespons
         original_trial_id=replay_row.original_trial_id,
         consistent=replay_row.consistent,
         report=report,
-        created_at=replay_row.created_at.isoformat()
+        created_at=replay_row.created_at.isoformat(),
     )
+
 
 @router.get("/{trial_id}/replays", response_model=list[ReplayResponse])
 def get_replays(trial_id: str, db: Session = Depends(get_db)) -> list[ReplayResponse]:
@@ -161,14 +162,14 @@ def get_replays(trial_id: str, db: Session = Depends(get_db)) -> list[ReplayResp
         raise HTTPException(status_code=404, detail="Trial not found.")
 
     replays = db.query(ReplayRow).filter(ReplayRow.original_trial_id == trial_id).order_by(ReplayRow.created_at.desc()).all()
-    
+
     return [
         ReplayResponse(
             replay_id=r.replay_id,
             original_trial_id=r.original_trial_id,
             consistent=r.consistent,
             report=ReplayReport.model_validate_json(r.report),
-            created_at=r.created_at.isoformat()
+            created_at=r.created_at.isoformat(),
         )
         for r in replays
     ]

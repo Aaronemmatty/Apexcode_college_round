@@ -5,6 +5,7 @@ import {
   listCampaigns,
   getCampaign,
   createRun,
+  rerunCampaignBypasses,
   listScenarios,
   useAsync,
 } from '../api/client';
@@ -136,6 +137,39 @@ export default function Campaign() {
       showToast(`Campaign failed: ${msg}`, 'error');
     } finally {
       setRunning(false);
+    }
+  };
+
+  const [batchDefense, setBatchDefense] = useState<string>('gateway');
+  const [batchRerunning, setBatchRerunning] = useState<boolean>(false);
+  const [batchSummary, setBatchSummary] = useState<{ now_held: number; still_violated: number } | null>(null);
+
+  const handleBatchRerun = async () => {
+    if (!currentCampaign?.campaign_id) return;
+    setBatchRerunning(true);
+    setBatchSummary(null);
+    try {
+      const res = await rerunCampaignBypasses(currentCampaign.campaign_id, batchDefense);
+      setBatchSummary({
+        now_held: (res as any).now_held_count ?? res.fixed_count,
+        still_violated: res.still_violated_count,
+      });
+      for (const item of (res as any).results || []) {
+        setRerunStates((prev) => ({
+          ...prev,
+          [item.task_id]: {
+            loading: false,
+            verdict: item.verdict,
+            trial_id: item.trial_id,
+            fix_suggestions: item.fix_suggestions,
+          },
+        }));
+      }
+      showToast(`Re-test complete: ${res.fixed_count} now held, ${res.still_violated_count} still violated`, 'success');
+    } catch (e: any) {
+      showToast(`Batch re-test failed: ${e?.message || e}`, 'error');
+    } finally {
+      setBatchRerunning(false);
     }
   };
 
@@ -523,6 +557,49 @@ export default function Campaign() {
                 <CardDescription className="text-red-300/80 text-xs">
                   These mutated attacks evaded the {currentCampaign.defense} defense and successfully violated system invariants.
                 </CardDescription>
+                <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3 border-t border-red-900/40">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-300 font-medium">Re-test against:</span>
+                    <select
+                      value={batchDefense}
+                      onChange={(e) => setBatchDefense(e.target.value)}
+                      className="bg-slate-950 border border-slate-700 rounded text-xs px-2.5 py-1 text-white cursor-pointer font-medium"
+                    >
+                      <option value="gateway">Security Gateway</option>
+                      <option value="both">Both (Hardening + Gateway)</option>
+                      <option value="prompt_hardening">Prompt Hardening</option>
+                      <option value="none">No Defense</option>
+                    </select>
+                    <Button
+                      size="sm"
+                      disabled={batchRerunning}
+                      onClick={handleBatchRerun}
+                      className="bg-purple-700 hover:bg-purple-600 text-white text-xs h-7 px-3 font-semibold shadow-md"
+                    >
+                      {batchRerunning ? (
+                        <>
+                          <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                          Re-testing Bypasses...
+                        </>
+                      ) : (
+                        <>
+                          <RotateCw className="w-3 h-3 mr-1.5" />
+                          Re-test against defense
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  {batchSummary && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <Badge className="bg-emerald-950 text-emerald-400 border-emerald-800 font-mono">
+                        {batchSummary.now_held} NOW HELD
+                      </Badge>
+                      <Badge className="bg-red-950 text-red-400 border-red-800 font-mono">
+                        {batchSummary.still_violated} STILL VIOLATED
+                      </Badge>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
                 {currentCampaign.bypasses.map((bp) => {
@@ -551,6 +628,16 @@ export default function Campaign() {
                           <span>&bull;</span>
                           <span>Task ID: {taskId}</span>
                         </div>
+
+                        {/* Fix Suggestions */}
+                        {((rerunState as any)?.fix_suggestions || (bp as any).fix_suggestions || []).length > 0 && (
+                          <div className="mt-2.5 p-2 bg-purple-950/40 border border-purple-800/60 rounded text-xs">
+                            <span className="font-semibold text-purple-300">Recommended Fix: </span>
+                            <span className="text-slate-200">
+                              {((rerunState as any)?.fix_suggestions || (bp as any).fix_suggestions || [])[0]}
+                            </span>
+                          </div>
+                        )}
 
                         {/* Rerun inline result */}
                         {rerunState?.verdict && (

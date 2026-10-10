@@ -17,6 +17,7 @@ import {
   Play,
   RotateCcw,
   Terminal,
+  Sparkles,
 } from 'lucide-react';
 import {
   getAttackLibrary,
@@ -533,6 +534,21 @@ export default function AttackLab() {
                   <div className="font-medium text-slate-200 mt-0.5">{result.false_blocks}</div>
                 </div>
               </div>
+
+              {/* Fix Suggestions from Lookup Table */}
+              {result.fix_suggestions && result.fix_suggestions.length > 0 && (
+                <div className="p-3 bg-purple-950/40 border border-purple-800/60 rounded-md text-xs">
+                  <div className="flex items-center gap-1.5 font-semibold text-purple-300 mb-1">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Recommended Remediation (Lookup Policy Fix)
+                  </div>
+                  <ul className="list-disc list-inside space-y-1 text-slate-300">
+                    {result.fix_suggestions.map((fix: string, idx: number) => (
+                      <li key={idx}>{fix}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* Event Timeline */}
               <div>
