@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Optional, Protocol
 from pydantic import BaseModel, Field
 
-from app.events import Decision, ExecutionStatus
+from app.events import Decision, ExecutionStatus, Source
 from app.sandbox.tools import ToolEnvironment
 
 
@@ -12,6 +12,8 @@ class ToolRequest(BaseModel):
     """Specification of a tool call request."""
     tool: str
     arguments: dict[str, Any] = Field(default_factory=dict)
+    step: int = 0
+    source: Optional[Source] = None
 
 
 @dataclass
@@ -32,7 +34,7 @@ class ToolExecutor(Protocol):
 
 
 class DirectExecutor:
-    """Phase 2 executor: directly dispatches to the sandbox ToolEnvironment without defenses."""
+    """Directly dispatches to the sandbox ToolEnvironment without defenses."""
 
     def __init__(self, env: ToolEnvironment) -> None:
         self.env = env

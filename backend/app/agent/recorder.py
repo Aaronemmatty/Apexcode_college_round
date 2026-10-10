@@ -60,6 +60,64 @@ class TraceRecorder:
         self.events.append(event)
         return event
 
+    def record_gateway_decision(
+        self,
+        tool: str,
+        arguments: dict[str, Any],
+        decision: Decision,
+        rule_id: str,
+        step: int,
+        reason: str = "",
+        violations: Optional[list[str]] = None,
+        source: Optional[Source] = None,
+    ) -> TraceEvent:
+        event = TraceEvent(
+            event_id=self._next_event_id(),
+            run_id=self.run_id,
+            trial_id=self.trial_id,
+            step=step,
+            type=EventType.GATEWAY_DECISION,
+            tool=tool,
+            arguments=arguments,
+            source=source,
+            decision=decision,
+            rule_id=rule_id,
+            result={
+                "reason": reason,
+                "violations": violations or [],
+            },
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        self.events.append(event)
+        return event
+
+    def record_sensitive_data_detected(
+        self,
+        tool: str,
+        step: int,
+        rule_id: str = "sensitive_field_redacted",
+        fields: Optional[list[str]] = None,
+        canary_present: bool = False,
+        location: str = "tool_result",
+    ) -> TraceEvent:
+        event = TraceEvent(
+            event_id=self._next_event_id(),
+            run_id=self.run_id,
+            trial_id=self.trial_id,
+            step=step,
+            type=EventType.SENSITIVE_DATA_DETECTED,
+            tool=tool,
+            rule_id=rule_id,
+            result={
+                "fields": fields or [],
+                "canary_present": canary_present,
+                "location": location,
+            },
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        self.events.append(event)
+        return event
+
     def record_tool_result(
         self,
         tool: str,

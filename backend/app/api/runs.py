@@ -23,6 +23,7 @@ def _to_run_response(run: RunRow) -> RunResponse:
                 trial_id=trial.trial_id,
                 status=trial.status,
                 event_count=len(trial.events),
+                verdict=trial.evaluation.verdict if trial.evaluation else None,
             )
             for trial in run.trials
         ],

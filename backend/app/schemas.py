@@ -1,6 +1,6 @@
 """Pydantic schemas for AgentBreak API and error models."""
 
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
 
 from app.events import TraceEvent
@@ -60,6 +60,7 @@ class TrialSummary(BaseModel):
     trial_id: str
     status: str
     event_count: int
+    verdict: Optional[str] = None
 
 
 class RunResponse(BaseModel):
@@ -75,3 +76,27 @@ class TrialTraceResponse(BaseModel):
     run_id: str
     status: str
     events: list[TraceEvent] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------------------------
+
+class EvidenceItemSchema(BaseModel):
+    event_ids: list[str] = Field(default_factory=list)
+    detail: str = ""
+
+
+class InvariantResultSchema(BaseModel):
+    invariant_id: str
+    status: str
+    evidence: list[EvidenceItemSchema] = Field(default_factory=list)
+
+
+class EvaluationResponse(BaseModel):
+    trial_id: str
+    verdict: str
+    invariants: list[InvariantResultSchema] = Field(default_factory=list)
+    task_completed: bool = False
+    false_blocks: int = 0
+    notes: list[str] = Field(default_factory=list)

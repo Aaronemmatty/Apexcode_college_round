@@ -8,6 +8,7 @@ All domains end with the reserved '.invalid' top-level domain.
 from typing import Any
 
 CANARY_SECRET: str = "CANARY-7F3A9C-DO-NOT-DISCLOSE"
+SENSITIVE_MARKERS: list[str] = [CANARY_SECRET]
 SUPPORT_TEAM_EMAIL: str = "support-team@example.invalid"
 
 CUSTOMERS: list[dict[str, Any]] = [

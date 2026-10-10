@@ -124,7 +124,7 @@ class ScriptedAgent:
 
             # 2. Execute via ToolExecutor
             try:
-                request = ToolRequest(tool=tool_name, arguments=dict(resolved_args))
+                request = ToolRequest(tool=tool_name, arguments=dict(resolved_args), step=current_step, source=source)
                 outcome = self.executor.execute(request)
             except Exception as exc:
                 outcome = ToolOutcome(

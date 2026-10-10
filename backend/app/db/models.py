@@ -1,6 +1,7 @@
 """SQLAlchemy 2.0 declarative database models."""
 
 from datetime import datetime, timezone
+from typing import Optional
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -38,6 +39,8 @@ class TrialRow(Base):
 
     run: Mapped["RunRow"] = relationship("RunRow", back_populates="trials")
     events: Mapped[list["EventRow"]] = relationship("EventRow", back_populates="trial", cascade="all, delete-orphan")
+    evaluation: Mapped[Optional["EvaluationRow"]] = relationship("EvaluationRow", back_populates="trial", uselist=False, cascade="all, delete-orphan")
+    env_state: Mapped[Optional["TrialEnvStateRow"]] = relationship("TrialEnvStateRow", back_populates="trial", uselist=False, cascade="all, delete-orphan")
 
 
 class EventRow(Base):
@@ -49,3 +52,29 @@ class EventRow(Base):
     payload: Mapped[str] = mapped_column(Text, nullable=False)  # JSON serialized TraceEvent
 
     trial: Mapped["TrialRow"] = relationship("TrialRow", back_populates="events")
+
+
+class TrialEnvStateRow(Base):
+    """Snapshot of the sandbox environment state after a trial completes."""
+
+    __tablename__ = "trial_env_states"
+
+    trial_id: Mapped[str] = mapped_column(String(32), ForeignKey("trials.trial_id"), primary_key=True)
+    state_json: Mapped[str] = mapped_column(Text, nullable=False)
+
+    trial: Mapped["TrialRow"] = relationship("TrialRow", back_populates="env_state")
+
+
+class EvaluationRow(Base):
+    """Persisted evaluation result for a trial."""
+
+    __tablename__ = "evaluations"
+
+    trial_id: Mapped[str] = mapped_column(String(32), ForeignKey("trials.trial_id"), primary_key=True)
+    verdict: Mapped[str] = mapped_column(String(32), nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    evaluated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )
+
+    trial: Mapped["TrialRow"] = relationship("TrialRow", back_populates="evaluation")

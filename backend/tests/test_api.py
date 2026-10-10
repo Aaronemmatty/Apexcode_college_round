@@ -1,4 +1,4 @@
-"""Integration tests for scenarios, runs, and trials API endpoints."""
+"""Integration tests for scenarios, runs, trials, and evaluations API endpoints."""
 
 def test_list_scenarios(client):
     response = client.get("/api/scenarios")
@@ -66,12 +66,22 @@ def test_create_run_unknown_task_returns_404(client):
 
 
 def test_create_run_unsupported_defense_returns_422(client):
-    response = client.post("/api/runs", json={"task_id": "benign_customer_lookup", "defense": "gateway"})
+    """Phase 3: 'gateway' is now valid; an unknown defense should return 422."""
+    response = client.post("/api/runs", json={"task_id": "benign_customer_lookup", "defense": "unknown_defense"})
     assert response.status_code == 422
     data = response.json()
     assert "error" in data
     assert data["error"]["code"] == "HTTP_422"
-    assert "Phase 3" in data["error"]["message"]
+
+
+def test_create_run_with_gateway_defense(client):
+    """Phase 3: defense='gateway' should succeed and return a completed run."""
+    post_resp = client.post("/api/runs", json={"task_id": "benign_customer_lookup", "defense": "gateway"})
+    assert post_resp.status_code == 200
+    run_data = post_resp.json()
+    assert run_data["defense"] == "gateway"
+    assert run_data["status"] == "completed"
+    assert len(run_data["trials"]) == 1
 
 
 def test_list_runs_and_get_run_detail(client):
@@ -107,6 +117,29 @@ def test_get_run_not_found(client):
 
 def test_get_trial_trace_not_found(client):
     response = client.get("/api/trials/trial_nonexistent/trace")
+    assert response.status_code == 404
+    data = response.json()
+    assert "error" in data
+    assert data["error"]["code"] == "HTTP_404"
+
+
+def test_get_trial_evaluation(client):
+    """Phase 3: Evaluation endpoint returns verdict for a completed trial."""
+    post_resp = client.post("/api/runs", json={"task_id": "benign_customer_lookup", "defense": "none"})
+    assert post_resp.status_code == 200
+    trial_id = post_resp.json()["trials"][0]["trial_id"]
+
+    eval_resp = client.get(f"/api/trials/{trial_id}/evaluation")
+    assert eval_resp.status_code == 200
+    eval_data = eval_resp.json()
+    assert eval_data["trial_id"] == trial_id
+    assert eval_data["verdict"] in ("violated", "held", "inconclusive")
+    assert isinstance(eval_data["invariants"], list)
+    assert len(eval_data["invariants"]) > 0
+
+
+def test_get_trial_evaluation_not_found(client):
+    response = client.get("/api/trials/trial_nonexistent/evaluation")
     assert response.status_code == 404
     data = response.json()
     assert "error" in data

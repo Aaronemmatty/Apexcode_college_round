@@ -1,12 +1,12 @@
-# AgentBreak 🛡️💥
+﻿# AgentBreak
 
-**AgentBreak** is a reproducible security-testing harness for tool-using AI agents. It evaluates agents against prompt injection and unauthorized tool execution in a controlled, mock-tool testing environment.
+**AgentBreak** is a reproducible security-testing harness for tool-using AI agents. It evaluates agents against prompt injection and unauthorized tool execution in a controlled, mock-tool testing environment with a security gateway and independent evaluation engine.
 
 > **Note:** This is a controlled mock-tool harness, not an OS-level sandbox.
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Apexcode_college_round/
@@ -16,67 +16,45 @@ Apexcode_college_round/
 │   │   ├── agent/        # ScriptedAgent, ToolExecutor, TraceRecorder, Tasks
 │   │   ├── sandbox/      # Mock ToolEnvironment & synthetic customer/document data
 │   │   ├── gateway/      # Security gateway & policy evaluation (Phase 3)
-│   │   ├── evaluator/    # Verdict evaluation & scoring (Phase 3)
-│   │   ├── attacks/      # Attack payloads & generation (Phase 4)
-│   │   ├── replay/       # Event trace replay engine
-│   │   ├── reports/      # Benchmark reporting
+│   │   ├── evaluator/    # Independent verdict evaluation & scoring (Phase 3)
 │   │   ├── db/           # SQLite persistence models & sessions
 │   │   ├── config.py     # Environment variable configuration
 │   │   ├── events.py     # Canonical TraceEvent contract models & enums
 │   │   ├── orchestrator.py# Run lifecycle orchestration
-│   │   ├── schemas.py    # Pydantic schemas (Health, Scenarios, Runs, Trials)
+│   │   ├── schemas.py    # Pydantic schemas (Health, Scenarios, Runs, Trials, Evaluations)
 │   │   └── main.py       # FastAPI application & error handling
-│   ├── scenarios/        # Scenario JSON files (.gitkeep)
-│   ├── tests/            # Pytest test suite (tools, agent, API, health)
+│   ├── tests/            # Pytest test suite (tools, agent, API, gateway, evaluator, pipeline)
 │   ├── requirements.txt  # Pinned backend dependencies
 │   └── pytest.ini        # Pytest configuration
 ├── frontend/
 │   ├── src/
-│   │   ├── api/          # Fetch client wrapper
-│   │   ├── types/        # TypeScript interfaces (HealthResponse, TraceEvent)
+│   │   ├── types/        # TypeScript interfaces (events, evaluation, runs)
 │   │   ├── App.tsx       # Dark security status dashboard
-│   │   └── index.css     # Tailwind CSS v4 entry
-│   ├── .env.example      # Frontend environment variables
-│   └── vite.config.ts    # Vite configuration with Tailwind v4 plugin
-├── data/
-│   └── cassettes/        # Mock interaction recordings (.gitkeep)
+│   └── vite.config.ts    # Vite configuration
 ├── docs/
 │   ├── architecture.md   # System architecture overview
 │   ├── event-contract.md # Canonical event contract documentation & examples
+│   ├── gateway.md        # Security gateway rules and redaction
+│   ├── evaluator.md      # Evaluator invariants and verdict logic
 │   ├── threat-model.md   # Threat model taxonomy
 │   └── limitations.md    # Mock harness boundaries & limitations
-├── .env.example          # Root environment template
-├── .gitignore            # Git ignore rules
 └── README.md             # Project documentation & startup instructions
 ```
 
 ---
 
-## 🚀 Quick Start (Windows PowerShell)
+## Quick Start (Windows PowerShell)
 
 ### 1. Backend Setup & Run
 
 Open a Windows PowerShell terminal in the repository root:
 
 ```powershell
-# Navigate to the backend directory
 cd backend
-
-# Create Python virtual environment
 python -m venv .venv
-
-# Activate virtual environment
-# NOTE: If script activation is blocked by Windows execution policy, run:
-# Set-ExecutionPolicy -Scope Process Bypass
 .\.venv\Scripts\Activate.ps1
-
-# Install backend dependencies
 pip install -r requirements.txt
-
-# Run the test suite
 pytest -v
-
-# Start the development server
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -91,16 +69,9 @@ The backend API will run at `http://localhost:8000`.
 Open a second Windows PowerShell terminal in the repository root:
 
 ```powershell
-# Navigate to the frontend directory
 cd frontend
-
-# Install Node dependencies
 npm install
-
-# Build for production (type-check + bundle)
 npm run build
-
-# Start the Vite development server
 npm run dev
 ```
 
@@ -108,50 +79,38 @@ The frontend dashboard will run at `http://localhost:5173`.
 
 ---
 
-## 🧪 Run a Task (PowerShell Examples)
+## Run a Task (PowerShell Examples)
 
 When the backend server is running on `http://localhost:8000`:
 
-### Execute an Attack Scenario (Indirect Prompt Injection)
+### Execute an Attack Scenario with Gateway Defense
 
 ```powershell
-# Execute the indirect injection attack task
+# Run the indirect injection attack scenario protected by the security gateway
+$r = Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/runs `
+  -ContentType "application/json" `
+  -Body '{"task_id":"indirect_injection_email_leak","defense":"gateway"}'
+
+$trialId = $r.trials[0].trial_id
+
+# Fetch the independent security evaluation
+$eval = Invoke-RestMethod -Uri "http://localhost:8000/api/trials/$trialId/evaluation"
+$eval | ConvertTo-Json -Depth 4
+
+# Fetch the chronological event trace for the trial
+$trace = Invoke-RestMethod -Uri "http://localhost:8000/api/trials/$trialId/trace"
+$trace.events | Format-Table -Property step, type, tool, decision, rule_id, execution_status
+```
+
+### Execute a Baseline Attack (No Defense)
+
+```powershell
+# Run the attack without defense to observe compromise
 $r = Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/runs `
   -ContentType "application/json" `
   -Body '{"task_id":"indirect_injection_email_leak","defense":"none"}'
 
-# Inspect the created run and trial ID
-$r | ConvertTo-Json
-
-# Fetch the chronological event trace for the trial
 $trialId = $r.trials[0].trial_id
-$trace = Invoke-RestMethod -Uri "http://localhost:8000/api/trials/$trialId/trace"
-$trace.events | Format-Table -Property step, type, tool, source, execution_status
+$eval = Invoke-RestMethod -Uri "http://localhost:8000/api/trials/$trialId/evaluation"
+$eval | ConvertTo-Json -Depth 4
 ```
-
-### Execute a Benign Task
-
-```powershell
-# Execute the benign email task
-$r = Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/runs `
-  -ContentType "application/json" `
-  -Body '{"task_id":"benign_valid_email","defense":"none"}'
-
-# Fetch and inspect the trace
-$trialId = $r.trials[0].trial_id
-$trace = Invoke-RestMethod -Uri "http://localhost:8000/api/trials/$trialId/trace"
-$trace.events | Format-Table -Property step, type, tool, source, execution_status
-```
-
----
-
-## ⚙️ Environment Variables
-
-Copy `.env.example` to `.env` as needed:
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Allowed CORS origins (comma-separated) |
-| `APP_NAME` | `AgentBreak` | Application name returned by health check |
-| `DATABASE_URL` | `sqlite:///./agentbreak.db` | SQLite database connection string |
-| `VITE_API_BASE_URL` | `http://localhost:8000` | Backend API base URL for frontend |
