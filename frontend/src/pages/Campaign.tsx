@@ -63,6 +63,7 @@ export default function Campaign() {
   const [defense, setDefense] = useState<string>('gateway');
   const [backend, setBackend] = useState<string>('scripted');
   const [ollamaModel, setOllamaModel] = useState<string>('qwen2.5:7b');
+  const [agentUrl, setAgentUrl] = useState<string>('http://localhost:9000/chat');
   const [selectedSeeds, setSelectedSeeds] = useState<string[]>(GATEWAY_BLOCKED_ATTACKS);
   const [running, setRunning] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,7 +123,7 @@ export default function Campaign() {
         defense,
         seed_scenarios: selectedSeeds,
         backend,
-        backend_config: backend === 'ollama' ? { model: ollamaModel } : undefined,
+        backend_config: backend === 'ollama' ? { model: ollamaModel } : backend === 'http_agent' ? { url: agentUrl } : undefined,
       });
       setCurrentCampaign(result);
       reloadHistory();
@@ -305,7 +306,21 @@ export default function Campaign() {
               </select>
             </div>
 
-            {backend === 'ollama' && (
+            {backend === 'http_agent' && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-1.5">
+                    Agent Endpoint URL
+                  </label>
+                  <input
+                    type="text"
+                    value={agentUrl}
+                    onChange={(e) => setAgentUrl(e.target.value)}
+                    placeholder="http://localhost:9000/chat"
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-3.5 py-2.5 text-sm text-slate-200 font-mono focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              )}
+              {backend === 'ollama' && (
               <div>
                 <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-1.5">
                   Ollama Model

@@ -53,6 +53,7 @@ export default function AttackLab() {
   const [defense, setDefense] = useState<string>('none');
   const [backend, setBackend] = useState<string>('scripted');
   const [ollamaModel, setOllamaModel] = useState<string>('qwen2.5:7b');
+  const [agentUrl, setAgentUrl] = useState<string>('http://localhost:9000/chat');
   const [nRuns, setNRuns] = useState<number>(3);
   const [seed, setSeed] = useState<number>(42);
   
@@ -121,7 +122,7 @@ export default function AttackLab() {
         seed,
         backend,
         n_runs: backend === 'ollama' ? nRuns : 1,
-        backend_config: backend === 'ollama' ? { model: ollamaModel } : undefined,
+        backend_config: backend === 'ollama' ? { model: ollamaModel } : backend === 'http_agent' ? { url: agentUrl } : undefined,
       });
       setResult(res);
       const summaryText = res.summary ? ` [${res.summary}]` : '';
@@ -332,7 +333,21 @@ export default function AttackLab() {
                 <option value="ollama">Ollama LLM</option>
               </select>
             </div>
-            {backend === 'ollama' && (
+            {backend === 'http_agent' && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                    Agent Endpoint URL
+                  </label>
+                  <input
+                    type="text"
+                    value={agentUrl}
+                    onChange={(e) => setAgentUrl(e.target.value)}
+                    placeholder="http://localhost:9000/chat"
+                    className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+              )}
+              {backend === 'ollama' && (
               <div>
                 <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
                   Ollama Model
