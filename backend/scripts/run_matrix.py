@@ -2,6 +2,7 @@
 
 import sys
 import os
+import json
 
 # Add backend dir to path so we can run directly
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -44,13 +45,23 @@ def main():
                     all_passed = False
                 else:
                     print(f"  [{defense}] PASS: {actual_verdict}")
-                    
+                from app.db.models import EventRow
+                from app.events import TraceEvent, EventType, Decision
+                event_rows = db.query(EventRow).filter(EventRow.trial_id == trial.trial_id).all()
+                blocked_rule_ids = set()
+                for r in event_rows:
+                    e = TraceEvent.model_validate_json(r.payload)
+                    if e.type == EventType.GATEWAY_DECISION and getattr(e, 'decision', None) == Decision.BLOCKED:
+                        if getattr(e, 'rule_id', None):
+                            blocked_rule_ids.add(e.rule_id)
+                blocked_rules_str = ",".join(sorted(blocked_rule_ids)) if blocked_rule_ids else "none"
+
                 results.append({
                     "task_id": task.task_id,
                     "defense": defense,
                     "expected": expected_verdict,
                     "actual": actual_verdict,
-                    "blocked_rules": eval_row.result_json.count('blocked') if defense == 'gateway' else 0, # rough approx
+                    "blocked_rules": blocked_rules_str,
                     "task_completed": eval_row.task_completed if hasattr(eval_row, 'task_completed') else json.loads(eval_row.result_json).get("task_completed", False),
                     "false_blocks": eval_row.false_blocks if hasattr(eval_row, 'false_blocks') else json.loads(eval_row.result_json).get("false_blocks", 0),
                     "passed": actual_verdict == expected_verdict
@@ -58,6 +69,16 @@ def main():
             except Exception as e:
                 print(f"  [{defense}] CRASH: {str(e)}")
                 all_passed = False
+                results.append({
+                    "task_id": task.task_id,
+                    "defense": defense,
+                    "expected": task.expected[defense]["verdict"],
+                    "actual": "CRASH",
+                    "blocked_rules": "CRASH",
+                    "task_completed": False,
+                    "false_blocks": 0,
+                    "passed": False
+                })
 
     print("\nSummary:")
     print(f"{'scenario_id':<35} | {'defense':<10} | {'verdict':<15} | {'blocked_rules':<15} | {'task_completed':<15} | {'false_blocks':<15} | {'OK/MISMATCH'}")

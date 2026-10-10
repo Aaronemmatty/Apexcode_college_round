@@ -1,4 +1,4 @@
-﻿# Threat Model
+# Threat Model
 
 Threat model and vulnerability taxonomy for evaluating tool-using AI agents against prompt injection and unauthorized actions.
 
@@ -28,7 +28,7 @@ Threat model and vulnerability taxonomy for evaluating tool-using AI agents agai
 - **Strict Argument Schema Validation (`invalid_arguments`):** Type and length boundaries preventing injection and malformed requests.
 - **Recipient Allowlisting (`recipient_not_allowed`):** Outbound communication restricted to pre-approved addresses.
 - **Outbound Canary Interception (`canary_in_outbound`):** Deep parameter inspection catching canary leaks before dispatch.
-- **Bounded Query Scope (`excessive_data_access`):** Blocking wildcard and blank queries.
+- **Bounded Query Scope (`excessive_data_access`):** Blocking wildcard and blank queries. Note: Specific broad queries (e.g., searching for "a") that return excessive data but don't strictly use a wildcard are known residual vulnerabilities (e.g., `excessive_access_broad_query` scenario).
 - **Data Redaction:** Automatic stripping of internal account notes from customer lookup results.
 
 ---

@@ -1,4 +1,4 @@
-﻿# AgentBreak
+# AgentBreak
 
 **AgentBreak** is a reproducible security-testing harness for tool-using AI agents. It evaluates agents against prompt injection and unauthorized tool execution in a controlled, mock-tool testing environment with a security gateway and independent evaluation engine.
 
@@ -76,6 +76,22 @@ npm run dev
 ```
 
 The frontend dashboard will run at `http://localhost:5173`.
+
+---
+
+## 12 Security Scenarios & Deterministic Benchmark
+
+AgentBreak comes loaded with 12 deterministic JSON-based test scenarios located in `backend/scenarios/`. These include a mix of benign workflows and sophisticated indirect/direct prompt injections (e.g., `excessive_access_broad_query`, `canary_in_authorized_email`, `multi_step_injection`).
+
+**How to add a scenario:**
+Simply drop a new JSON file following the `ScenarioDef` schema (see `app/attacks/models.py`) into the `backend/scenarios/` directory. The application will automatically discover and load it. Be sure to specify `max_customer_records` explicitly.
+
+**How to run the full matrix:**
+Run the `run_matrix.py` script to simulate every scenario across all defenses (`none`, `gateway`) and verify expected outcomes:
+```bash
+cd backend
+.venv/bin/python scripts/run_matrix.py
+```
 
 ---
 
