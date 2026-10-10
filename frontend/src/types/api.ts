@@ -71,3 +71,42 @@ export class ApiError extends Error {
     this.status = status;
   }
 }
+
+export interface MetricFraction {
+    n: number;
+    m: number;
+}
+
+export interface ScenarioComparison {
+    task_id: string;
+    title: string;
+    kind: "attack" | "benign";
+    category: string;
+    none: { trial_id: string; verdict: string } | null;
+    gateway: { trial_id: string; verdict: string; blocked_rule_ids: string[]; task_completed: boolean; false_blocks: number } | null;
+    change: "prevented" | "still_violated" | "no_change" | "incomplete";
+}
+
+export interface CompareMetrics {
+    excluded_failed: number;
+    excluded_inconclusive: number;
+    attack_violated_none: MetricFraction;
+    attack_violated_gateway: MetricFraction;
+    attack_prevented: number;
+    attack_still_violated: string[];
+    benign_held_none: MetricFraction;
+    benign_held_gateway: MetricFraction;
+    benign_task_completed_gateway: MetricFraction;
+    false_blocks_total: number;
+    false_block_rate: MetricFraction;
+    block_counts_by_rule: Record<string, number>;
+    violations_listed: Record<string, number>;
+    by_category: Record<string, { violated_none: number; violated_gateway: number; total: number }>;
+    replay: {
+        replayed: number;
+        consistent: number;
+        not_replayed: number;
+    };
+    per_scenario: ScenarioComparison[];
+    incomplete_scenarios: number;
+}

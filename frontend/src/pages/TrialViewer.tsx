@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { useAsync, getTrace, getEvaluation, listRuns, replayTrial } from '../api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { AlertCircle, CheckCircle2, XCircle, Info, Copy, Loader2, FastForward, ShieldAlert, ShieldCheck, Terminal, Cpu, MessageSquare } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Info, Copy, Loader2, FastForward, ShieldAlert, Terminal, Cpu, MessageSquare } from 'lucide-react';
 import type { TraceEvent } from '../types/events';
 import type { Verdict } from '../types/evaluation';
 
@@ -256,7 +256,7 @@ export default function TrialViewer() {
           <CardContent className="pt-6 text-center space-y-4">
             <h2 className="text-xl font-bold">Trial not found</h2>
             <p className="text-slate-400">The requested trial ID does not exist.</p>
-            <Button asChild><Link to="/scenarios">Back to Scenarios</Link></Button>
+            <Link to="/scenarios"><Button>Back to Scenarios</Button></Link>
           </CardContent>
         </Card>
       );
@@ -420,13 +420,13 @@ export default function TrialViewer() {
         <div className="flex-1 w-full space-y-8">
           {steps.map(stepNum => (
             <div key={stepNum} className="relative">
-              <div className="sticky top-0 z-10 bg-slate-950/80 backdrop-blur border-b border-slate-800 py-2 mb-4 font-semibold text-slate-300">
+              <div className="sticky top-0 z-10 bg-slate-950/80 backdrop-blur border-b border-slate-800 py-2 mb-4 pl-4 font-semibold text-slate-300">
                 Step {stepNum}
               </div>
-              <div className="space-y-4 pl-4 border-l-2 border-slate-800 ml-2">
+              <div className="space-y-4 pl-6 border-l-2 border-slate-800 ml-6">
                 {groupedEvents.get(stepNum)!.map(event => (
                   <div key={event.event_id} className="relative">
-                    <div className="absolute -left-[25px] top-4 w-4 h-4 rounded-full bg-slate-800 border-2 border-slate-950 z-10" />
+                    <div className="absolute -left-[33px] top-4 w-4 h-4 rounded-full bg-slate-800 border-2 border-slate-950 z-10" />
                     <EventCard event={event} evidenceEventIds={evidenceEventIds} />
                   </div>
                 ))}

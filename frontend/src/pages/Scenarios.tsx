@@ -78,7 +78,7 @@ function ScenarioDetailView({ taskId, onClose }: { taskId: string, onClose: () =
         </div>
         <div>
           <h3 className="text-sm font-semibold text-slate-500 mb-1">Max Customer Records</h3>
-          <span className="text-sm">{detail.permissions?.max_customer_records ?? 'Unknown'}</span>
+          <span className="text-sm">{(detail as any).max_customer_records ?? 'Unknown'}</span>
         </div>
         <details className="group border border-slate-800 rounded-md">
           <summary className="px-4 py-3 cursor-pointer text-sm font-semibold bg-slate-950/50 hover:bg-slate-800/50 transition-colors list-none flex items-center justify-between">

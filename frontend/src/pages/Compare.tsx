@@ -1,85 +1,33 @@
-import { useState, useEffect } from 'react';
-import { useAsync, listScenarios, listRuns, getEvaluation, getTrace, createRun } from '../api/client';
+import { useState } from 'react';
+import { useAsync, getCompare, runReplayAll } from '../api/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw, Download, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { RunMatrixLauncher } from '../components/RunMatrixLauncher';
-import type { Evaluation, Verdict } from '../types/evaluation';
-import type { TraceResponse } from '../types/api';
 
 export default function Compare() {
-  const { data: scenarios, error: scenError, loading: scenLoading, reload: reloadScen } = useAsync(listScenarios);
-  const { data: runs, error: runsError, loading: runsLoading, reload: reloadRuns } = useAsync(listRuns);
-
-  const [evaluations, setEvaluations] = useState<Record<string, Evaluation>>({});
-  const [traces, setTraces] = useState<Record<string, TraceResponse>>({});
-  const [extraLoading, setExtraLoading] = useState(false);
+  const { data, error, loading, reload } = useAsync(getCompare);
   const [filter, setFilter] = useState<'all' | 'attack' | 'benign' | 'diff'>('all');
+  const [replaying, setReplaying] = useState(false);
+  const [replayResult, setReplayResult] = useState<string | null>(null);
 
-  const reloadData = () => {
-    reloadScen();
-    reloadRuns();
-  };
-
-  useEffect(() => {
-    if (!scenarios || !runs) return;
-
-    // Build list of gateway trials we need to fetch traces & evaluations for
-    const gwTrialsToFetch = new Set<string>();
-    scenarios.forEach(scen => {
-      const gwRun = runs.find(r => r.task_id === scen.task_id && r.defense === 'gateway' && r.trials.some(t => t.status === 'completed'));
-      if (gwRun) {
-        const gwTrial = gwRun.trials.find(t => t.status === 'completed');
-        if (gwTrial && (!evaluations[gwTrial.trial_id] || !traces[gwTrial.trial_id])) {
-          gwTrialsToFetch.add(gwTrial.trial_id);
-        }
-      }
-    });
-
-    if (gwTrialsToFetch.size === 0) return;
-
-    let canceled = false;
-    const fetchExtra = async () => {
-      setExtraLoading(true);
-      for (const trialId of gwTrialsToFetch) {
-        if (canceled) break;
-        try {
-          const [ev, tr] = await Promise.all([
-            getEvaluation(trialId).catch(() => null),
-            getTrace(trialId).catch(() => null)
-          ]);
-          if (!canceled) {
-            setEvaluations(prev => ({ ...prev, ...(ev ? { [trialId]: ev } : {}) }));
-            setTraces(prev => ({ ...prev, ...(tr ? { [trialId]: tr } : {}) }));
-          }
-        } catch (e) {
-          // ignore
-        }
-      }
-      if (!canceled) setExtraLoading(false);
-    };
-
-    fetchExtra();
-    return () => { canceled = true; };
-  }, [scenarios, runs]);
-
-  if (scenError || runsError) {
+  if (error) {
     return (
       <Card className="bg-red-950/20 border-red-900/50 max-w-xl mx-auto">
         <CardContent className="pt-6 flex flex-col items-center space-y-4">
           <AlertCircle className="w-12 h-12 text-red-500" />
-          <p className="text-red-400 font-medium">Failed to load data.</p>
-          <Button onClick={reloadData} variant="outline">Retry</Button>
+          <p className="text-red-400 font-medium">Failed to load compare metrics.</p>
+          <Button onClick={reload} variant="outline">Retry</Button>
         </CardContent>
       </Card>
     );
   }
 
-  if (scenLoading || runsLoading || !scenarios || !runs) {
+  if (loading || !data) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -91,331 +39,298 @@ export default function Compare() {
     );
   }
 
-  const rows = scenarios.map(scen => {
-    // runs are newest-first, so find returns the newest
-    const noneRun = runs.find(r => r.task_id === scen.task_id && r.defense === 'none' && r.trials.some(t => t.status === 'completed' && t.verdict !== 'inconclusive'));
-    const gwRun = runs.find(r => r.task_id === scen.task_id && r.defense === 'gateway' && r.trials.some(t => t.status === 'completed' && t.verdict !== 'inconclusive'));
-    
-    const noneTrial = noneRun?.trials.find(t => t.status === 'completed' && t.verdict !== 'inconclusive');
-    const gwTrial = gwRun?.trials.find(t => t.status === 'completed' && t.verdict !== 'inconclusive');
+  const getPercent = (n: number, m: number) => 
+    m === 0 ? 'No data' : `${Math.round((n / m) * 100)}% (${n}/${m})`;
 
-    let status: 'Prevented' | 'Still violated' | 'No change' | 'Incomplete' = 'Incomplete';
-    let missingDefense: 'none' | 'gateway' | null = null;
+  const chartData = Object.entries(data.by_category).map(([cat, stat]) => ({
+    category: cat,
+    'No defense': stat.violated_none,
+    'Gateway': stat.violated_gateway
+  }));
 
-    if (!noneTrial || !gwTrial) {
-      if (!noneTrial && gwTrial) missingDefense = 'none';
-      else if (noneTrial && !gwTrial) missingDefense = 'gateway';
-    } else {
-      if (scen.kind === 'attack') {
-        if (noneTrial.verdict === 'violated' && gwTrial.verdict === 'held') status = 'Prevented';
-        else if (noneTrial.verdict === 'violated' && gwTrial.verdict === 'violated') status = 'Still violated';
-        else status = 'No change';
-      } else {
-        if (noneTrial.verdict === 'held' && gwTrial.verdict === 'held') status = 'No change';
-        else if (noneTrial.verdict === 'held' && gwTrial.verdict === 'violated') status = 'Still violated'; // newly false blocked?
-        else status = 'No change'; // simplistic
-      }
+  const handleReplayAll = async () => {
+    setReplaying(true);
+    setReplayResult(null);
+    try {
+      const res = await runReplayAll();
+      setReplayResult(`${res.consistent}/${res.replayed} replays consistent`);
+      reload();
+    } catch (e) {
+      setReplayResult('Failed to run replays');
     }
+    setReplaying(false);
+  };
 
-    let blockedRules = 'n/a';
-    if (gwTrial && traces[gwTrial.trial_id]) {
-      const tr = traces[gwTrial.trial_id];
-      const blocks = tr.events.filter(e => e.type === 'gateway_decision' && e.decision === 'blocked');
-      if (blocks.length > 0) {
-        const rules = new Set<string>();
-        blocks.forEach(b => {
-          if (Array.isArray(b.result?.violations)) {
-            b.result.violations.forEach((v: any) => rules.add(v.rule_id));
-          }
-        });
-        blockedRules = rules.size > 0 ? Array.from(rules).join(', ') : 'unknown';
-      } else {
-        blockedRules = 'none';
-      }
+  const handleExport = async (format: 'json' | 'md') => {
+    try {
+      const url = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api/report?format=${format}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `agentbreak-report.${format}`;
+      a.click();
+    } catch (e) {
+      alert(`Export failed: ${e}`);
     }
+  };
 
-    return {
-      scenario: scen,
-      noneRun,
-      gatewayRun: gwRun,
-      noneTrial,
-      gatewayTrial: gwTrial,
-      status,
-      missingDefense,
-      blockedRules
-    };
-  });
-
-  const getPercent = (num: number, den: number) => 
-    den === 0 ? 'No data' : `${Math.round((num / den) * 100)}% (${num}/${den})`;
-
-  let attacksNoneTotal = 0;
-  let attacksNoneViolated = 0;
-  let attacksGwTotal = 0;
-  let attacksGwViolated = 0;
-  let benignGwTotal = 0;
-  let benignGwHeld = 0;
-  let falseBlocks = 0;
-  let incompleteCount = 0;
-
-  rows.forEach(r => {
-    if (r.missingDefense || !r.noneTrial || !r.gatewayTrial) {
-      incompleteCount++;
-    }
-    
-    if (r.scenario.kind === 'attack') {
-      if (r.noneTrial) {
-        attacksNoneTotal++;
-        if (r.noneTrial.verdict === 'violated') attacksNoneViolated++;
-      }
-      if (r.gatewayTrial) {
-        attacksGwTotal++;
-        if (r.gatewayTrial.verdict === 'violated') attacksGwViolated++;
-      }
-    } else {
-      if (r.gatewayTrial) {
-        benignGwTotal++;
-        if (r.gatewayTrial.verdict === 'held') benignGwHeld++;
-        if (evaluations[r.gatewayTrial.trial_id]) {
-          falseBlocks += evaluations[r.gatewayTrial.trial_id].false_blocks || 0;
-        }
-      }
-    }
-  });
-
-  // Prepare chart data (group by category)
-  const categories = Array.from(new Set(scenarios.filter(s => s.kind === 'attack').map(s => s.category)));
-  const chartData = categories.map(cat => {
-    const catRows = rows.filter(r => r.scenario.category === cat && r.scenario.kind === 'attack');
-    let noneVio = 0;
-    let gwVio = 0;
-    catRows.forEach(r => {
-      if (r.noneTrial?.verdict === 'violated') noneVio++;
-      if (r.gatewayTrial?.verdict === 'violated') gwVio++;
-    });
-    return { category: cat, 'No defense': noneVio, 'Gateway': gwVio };
-  });
-
-  const hasCompletedRuns = runs.some(r => r.trials.some(t => t.status === 'completed'));
-
-  if (!hasCompletedRuns) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full pt-12 space-y-6">
-        <h2 className="text-2xl font-bold">No Completed Runs</h2>
-        <RunMatrixLauncher onComplete={reloadData} />
-      </div>
-    );
-  }
-
-  const filteredRows = rows.filter(r => {
-    if (filter === 'attack' && r.scenario.kind !== 'attack') return false;
-    if (filter === 'benign' && r.scenario.kind !== 'benign') return false;
-    if (filter === 'diff' && (r.status === 'No change' || r.status === 'Incomplete')) return false;
+  const filteredRows = data.per_scenario.filter(r => {
+    if (filter === 'all') return true;
+    if (filter === 'attack') return r.kind === 'attack';
+    if (filter === 'benign') return r.kind === 'benign';
+    if (filter === 'diff') return r.change !== 'no_change' && r.change !== 'incomplete';
     return true;
   });
 
-  const getVerdictBadge = (verdict: Verdict) => {
-    if (verdict === 'held') return <Badge className="bg-emerald-950 text-emerald-400 border-emerald-800">HELD</Badge>;
-    if (verdict === 'violated') return <Badge className="bg-red-950 text-red-400 border-red-800">VIOLATED</Badge>;
-    return <Badge className="bg-amber-950 text-amber-400 border-amber-800">INCONCLUSIVE</Badge>;
-  };
-
-  const SingleRunButton = ({ taskId, defense }: { taskId: string, defense: 'none' | 'gateway' }) => {
-    const [running, setRunning] = useState(false);
-    return (
-      <Button 
-        size="sm" 
-        variant="outline" 
-        className="h-6 text-xs px-2"
-        disabled={running}
-        onClick={async () => {
-          setRunning(true);
-          try {
-            await createRun({ task_id: taskId, defense });
-            reloadData();
-          } catch(e) {}
-          setRunning(false);
-        }}
-      >
-        {running ? <RefreshCw className="w-3 h-3 animate-spin" /> : 'Run'}
-      </Button>
-    );
-  };
-
   return (
-    <div className="space-y-6 pb-24">
+    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Comparison</h1>
-        {extraLoading && <span className="text-sm text-slate-400 flex items-center gap-2"><RefreshCw className="w-4 h-4 animate-spin" /> Loading traces...</span>}
+        <div>
+          <h1 className="text-4xl font-bold text-white tracking-tight">Compare</h1>
+          <p className="text-slate-400 mt-2">Evaluate defense efficacy against attack scenarios.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => handleExport('json')} variant="outline" className="border-slate-700 hover:bg-slate-800">
+            <Download className="w-4 h-4 mr-2" /> JSON
+          </Button>
+          <Button onClick={() => handleExport('md')} variant="outline" className="border-slate-700 hover:bg-slate-800">
+            <Download className="w-4 h-4 mr-2" /> Markdown
+          </Button>
+          <Button onClick={reload} variant="outline" className="border-slate-700 hover:bg-slate-800" aria-label="Refresh">
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <div className="flex flex-col md:flex-row gap-4 mb-4">
+         <RunMatrixLauncher onComplete={reload} />
+         <Button onClick={handleReplayAll} disabled={replaying} variant="secondary" className="flex-1 md:flex-none">
+           {replaying ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
+           Add replay check
+         </Button>
+         {replayResult && <span className="text-sm text-slate-400 self-center">{replayResult}</span>}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="p-4 pb-2"><CardTitle className="text-sm font-medium text-slate-400">Attacks Violated (None)</CardTitle></CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">{getPercent(attacksNoneViolated, attacksNoneTotal)}</div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-400">Attacks violated, no defense</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-400">
+              {getPercent(data.attack_violated_none.n, data.attack_violated_none.m)}
+            </div>
           </CardContent>
         </Card>
         <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="p-4 pb-2"><CardTitle className="text-sm font-medium text-slate-400">Residual with Gateway</CardTitle></CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold text-red-400">{getPercent(attacksGwViolated, attacksGwTotal)}</div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-400">Residual with gateway</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-400">
+              {getPercent(data.attack_violated_gateway.n, data.attack_violated_gateway.m)}
+            </div>
+            <CardDescription className="mt-1">
+               {data.attack_prevented} prevented
+            </CardDescription>
           </CardContent>
         </Card>
         <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="p-4 pb-2"><CardTitle className="text-sm font-medium text-slate-400">Benign Held (Gateway)</CardTitle></CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold text-emerald-400">{getPercent(benignGwHeld, benignGwTotal)}</div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-400">Benign held, with gateway</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-400">
+              {getPercent(data.benign_held_gateway.n, data.benign_held_gateway.m)}
+            </div>
           </CardContent>
         </Card>
         <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="p-4 pb-2"><CardTitle className="text-sm font-medium text-slate-400">False Blocks</CardTitle></CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">{benignGwTotal === 0 ? 'No data' : falseBlocks}</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-slate-900 border-slate-800">
-          <CardHeader className="p-4 pb-2"><CardTitle className="text-sm font-medium text-slate-400">Incomplete Pairs</CardTitle></CardHeader>
-          <CardContent className="p-4 pt-0">
-            <div className="text-2xl font-bold">{incompleteCount}</div>
-            <p className="text-xs text-slate-500 mt-1">Scenarios missing one or both runs.</p>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-400">False block rate (Benign)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-400">
+              {getPercent(data.false_block_rate.n, data.false_block_rate.m)}
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="bg-slate-900 border-slate-800 overflow-hidden">
-        <CardHeader>
-          <CardTitle>Attack Categories</CardTitle>
-          <CardDescription>Number of violated attack scenarios per category.</CardDescription>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="bg-slate-900 border-slate-800 lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Violations by Category (Attacks)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-72 w-full">
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                    <XAxis dataKey="category" stroke="#94a3b8" tick={{ fill: '#94a3b8' }} />
+                    <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8' }} allowDecimals={false} />
+                    <RechartsTooltip 
+                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f8fafc' }}
+                      itemStyle={{ color: '#f8fafc' }}
+                    />
+                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                    <Bar dataKey="No defense" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Gateway" fill="#f97316" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-slate-500">
+                  No attack data available.
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-slate-900 border-slate-800">
+          <CardHeader>
+            <CardTitle>Replay consistency</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                <span className="text-slate-400">Consistent replays</span>
+                <span className="font-bold text-white">{data.replay.consistent}</span>
+              </div>
+              <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+                <span className="text-slate-400">Total replayed</span>
+                <span className="font-bold text-white">{data.replay.replayed}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2">
+                <span className="text-slate-400">Not replayed</span>
+                <span className="font-bold text-slate-500">{data.replay.not_replayed}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="bg-slate-900 border-slate-800">
+        <CardHeader className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <CardTitle>Per-Scenario Comparison</CardTitle>
+            <CardDescription>
+              Details of the newest completed trial for each scenario and defense.
+              {data.incomplete_scenarios > 0 && ` (${data.incomplete_scenarios} incomplete scenarios hidden or marked)`}
+            </CardDescription>
+            {(data.excluded_failed > 0 || data.excluded_inconclusive > 0) && (
+              <p className="text-xs text-slate-500 mt-1">Excluded trials note: {data.excluded_failed} failed, {data.excluded_inconclusive} inconclusive.</p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant={filter === 'all' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('all')}>All</Button>
+            <Button variant={filter === 'attack' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('attack')}>Attacks</Button>
+            <Button variant={filter === 'benign' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('benign')}>Benign</Button>
+            <Button variant={filter === 'diff' ? 'default' : 'outline'} size="sm" onClick={() => setFilter('diff')}>Changed</Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="h-72 w-full overflow-x-auto custom-scrollbar">
-            <div className="min-w-[600px] h-full" role="img" aria-label="Bar chart showing attack violations by category">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                  <XAxis dataKey="category" stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 12 }} />
-                  <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 12 }} allowDecimals={false} />
-                  <RechartsTooltip 
-                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f1f5f9' }}
-                    itemStyle={{ color: '#f1f5f9' }}
-                  />
-                  <Legend wrapperStyle={{ paddingTop: '10px' }} />
-                  <Bar dataKey="No defense" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Gateway" fill="#10b981" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full text-sm text-left text-slate-400">
-              <thead className="text-xs uppercase bg-slate-950 text-slate-500">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-slate-400 uppercase bg-slate-950">
                 <tr>
-                  <th className="px-4 py-2 font-medium">Category</th>
-                  <th className="px-4 py-2 font-medium">No defense (Violated)</th>
-                  <th className="px-4 py-2 font-medium">Gateway (Violated)</th>
+                  <th className="px-4 py-3 rounded-tl-lg">Scenario</th>
+                  <th className="px-4 py-3">No defense</th>
+                  <th className="px-4 py-3">Gateway</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 rounded-tr-lg">Blocked Rules</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800">
-                {chartData.map(d => (
-                  <tr key={d.category} className="bg-slate-900 hover:bg-slate-800/50 transition-colors">
-                    <td className="px-4 py-2 font-mono text-slate-300">{d.category}</td>
-                    <td className="px-4 py-2">{d['No defense']}</td>
-                    <td className="px-4 py-2 text-emerald-400">{d['Gateway']}</td>
+              <tbody>
+                {filteredRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                      No matching scenarios found.
+                    </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredRows.map((r) => (
+                    <tr key={r.task_id} className="border-b border-slate-800 last:border-0 hover:bg-slate-800/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-200">{r.title}</div>
+                        <div className="text-xs text-slate-500 font-mono mt-0.5">{r.task_id}</div>
+                        <Badge variant="outline" className="mt-1 text-[10px] uppercase bg-slate-950">
+                          {r.kind}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.none ? (
+                          <div className="flex items-center gap-2">
+                            <Link to={`/trials/${r.none.trial_id}`} className="hover:underline">
+                              <Badge variant={r.none.verdict === 'violated' ? 'destructive' : 'default'} className={r.none.verdict === 'held' ? 'bg-emerald-500/20 text-emerald-400' : ''}>
+                                {r.none.verdict}
+                              </Badge>
+                            </Link>
+                          </div>
+                        ) : <span className="text-slate-500">-</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.gateway ? (
+                          <div className="flex flex-col gap-1">
+                            <Link to={`/trials/${r.gateway.trial_id}`} className="hover:underline inline-block w-fit">
+                              <Badge variant={r.gateway.verdict === 'violated' ? 'destructive' : 'default'} className={r.gateway.verdict === 'held' ? 'bg-emerald-500/20 text-emerald-400' : ''}>
+                                {r.gateway.verdict}
+                              </Badge>
+                            </Link>
+                            {r.gateway.task_completed && <span className="text-[10px] text-emerald-400">Task completed</span>}
+                          </div>
+                        ) : <span className="text-slate-500">-</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        {r.change === 'prevented' && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Prevented</Badge>}
+                        {r.change === 'still_violated' && <Badge variant="destructive" className="bg-red-500/20 text-red-400 border-red-500/30">Still violated</Badge>}
+                        {r.change === 'no_change' && <span className="text-slate-500">No change</span>}
+                        {r.change === 'incomplete' && <span className="text-slate-600 italic">Incomplete</span>}
+                      </td>
+                      <td className="px-4 py-3 max-w-[200px] truncate text-xs font-mono text-slate-400">
+                         {r.gateway ? (r.gateway.blocked_rule_ids.length > 0 ? r.gateway.blocked_rule_ids.join(', ') : 'none') : '-'}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </CardContent>
       </Card>
 
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-        <h2 className="text-xl font-bold">Scenario Matrix</h2>
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex bg-slate-900 rounded-md p-1 border border-slate-800 shrink-0">
-            <button onClick={() => setFilter('all')} className={`px-4 py-1.5 text-sm rounded-sm font-medium ${filter === 'all' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'}`}>All</button>
-            <button onClick={() => setFilter('attack')} className={`px-4 py-1.5 text-sm rounded-sm font-medium ${filter === 'attack' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'}`}>Attack</button>
-            <button onClick={() => setFilter('benign')} className={`px-4 py-1.5 text-sm rounded-sm font-medium ${filter === 'benign' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'}`}>Benign</button>
-            <button onClick={() => setFilter('diff')} className={`px-4 py-1.5 text-sm rounded-sm font-medium ${filter === 'diff' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-slate-200'}`}>Only Differences</button>
-          </div>
-          {incompleteCount > 0 && (
-            <Button variant="outline" size="sm" asChild>
-              <a href="#run-matrix-bottom">Run missing</a>
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="bg-slate-900 rounded-lg border border-slate-800 overflow-x-auto">
-        <table className="w-full text-sm text-left whitespace-nowrap">
-          <thead className="text-xs uppercase bg-slate-950 text-slate-500">
-            <tr>
-              <th className="px-4 py-3 font-medium">Scenario</th>
-              <th className="px-4 py-3 font-medium">Category</th>
-              <th className="px-4 py-3 font-medium">No Defense</th>
-              <th className="px-4 py-3 font-medium">Gateway</th>
-              <th className="px-4 py-3 font-medium">Blocked Rules (GW)</th>
-              <th className="px-4 py-3 font-medium">Changed</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800">
-            {filteredRows.map(r => {
-              const isStillVio = r.status === 'Still violated';
-              return (
-                <tr key={r.scenario.task_id} className={`transition-colors hover:bg-slate-800/50 ${isStillVio ? 'bg-red-950/10' : ''}`}>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <Link to={`/scenarios?selected=${r.scenario.task_id}`} className="font-semibold text-slate-200 hover:text-blue-400 hover:underline">
-                        {r.scenario.title}
-                      </Link>
-                      <Badge variant="outline" className={`text-[10px] h-4 px-1 ${r.scenario.kind === 'attack' ? 'border-red-900 text-red-500' : 'border-emerald-900 text-emerald-500'}`}>
-                        {r.scenario.kind}
-                      </Badge>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-400">{r.scenario.category}</td>
-                  <td className="px-4 py-3">
-                    {r.noneTrial ? (
-                      <Link to={`/trials/${r.noneTrial.trial_id}`} className="hover:opacity-80">
-                        {getVerdictBadge(r.noneTrial.verdict)}
-                      </Link>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-500 italic text-xs">Not run</span>
-                        <SingleRunButton taskId={r.scenario.task_id} defense="none" />
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {r.gatewayTrial ? (
-                      <Link to={`/trials/${r.gatewayTrial.trial_id}`} className="hover:opacity-80">
-                        {getVerdictBadge(r.gatewayTrial.verdict)}
-                      </Link>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-500 italic text-xs">Not run</span>
-                        <SingleRunButton taskId={r.scenario.task_id} defense="gateway" />
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-400">{r.blockedRules}</td>
-                  <td className="px-4 py-3">
-                    {r.status === 'Prevented' && <span className="text-emerald-400 font-medium">Prevented</span>}
-                    {r.status === 'Still violated' && <span className="text-red-400 font-medium">Still violated</span>}
-                    {r.status === 'No change' && <span className="text-slate-500">No change</span>}
-                    {r.status === 'Incomplete' && <span className="text-slate-600">Incomplete</span>}
-                  </td>
+      <Card className="bg-slate-900 border-slate-800">
+         <CardHeader>
+            <CardTitle>Block counts by rule</CardTitle>
+         </CardHeader>
+         <CardContent>
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-slate-400 uppercase bg-slate-950">
+                <tr>
+                  <th className="px-4 py-3">Rule ID</th>
+                  <th className="px-4 py-3">Blocked Events</th>
+                  <th className="px-4 py-3">Violations Listed</th>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div id="run-matrix-bottom" className="pt-8 flex justify-center">
-        <RunMatrixLauncher onComplete={reloadData} />
-      </div>
+              </thead>
+              <tbody>
+                {Object.keys(data.block_counts_by_rule).length === 0 && Object.keys(data.violations_listed).length === 0 ? (
+                  <tr><td colSpan={3} className="px-4 py-4 text-center text-slate-500">No blocked rules.</td></tr>
+                ) : (
+                  Array.from(new Set([...Object.keys(data.block_counts_by_rule), ...Object.keys(data.violations_listed)])).sort().map(rid => (
+                    <tr key={rid} className="border-b border-slate-800">
+                      <td className="px-4 py-2 font-mono text-slate-300">{rid}</td>
+                      <td className="px-4 py-2">{data.block_counts_by_rule[rid] || 0}</td>
+                      <td className="px-4 py-2">{data.violations_listed[rid] || 0}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+         </CardContent>
+      </Card>
     </div>
   );
 }

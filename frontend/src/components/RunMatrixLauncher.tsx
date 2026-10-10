@@ -20,7 +20,7 @@ export function RunMatrixLauncher({ onComplete }: { onComplete: () => void }) {
 
     try {
       const scenarios = await listScenarios();
-      const total = scenarios.length * 2;
+      
       let count = 0;
       let errs: string[] = [];
 

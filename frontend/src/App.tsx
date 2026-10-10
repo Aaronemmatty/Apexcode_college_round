@@ -15,7 +15,7 @@ function NotFound() {
       <CardContent className="pt-6 text-center space-y-4">
         <h2 className="text-xl font-bold">Page not found</h2>
         <p className="text-slate-400">The requested page does not exist.</p>
-        <Button asChild><Link to="/">Back to Home</Link></Button>
+        <Link to="/"><Button>Back to Home</Button></Link>
       </CardContent>
     </Card>
   );

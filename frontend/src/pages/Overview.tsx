@@ -1,4 +1,4 @@
-import { useAsync, listScenarios, listRuns } from '../api/client';
+import { useAsync, listScenarios, listRuns, getCompare } from '../api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -12,9 +12,10 @@ import { RunMatrixLauncher } from '../components/RunMatrixLauncher';
 export default function Overview() {
   const { data: scenarios, error: scenariosErr, loading: scenariosLoading, reload: reloadScenarios } = useAsync(listScenarios);
   const { data: runs, error: runsErr, loading: runsLoading, reload: reloadRuns } = useAsync(listRuns);
+  const { data: metrics, error: metricsErr, loading: metricsLoading, reload: reloadMetrics } = useAsync(getCompare);
 
-  const error = scenariosErr || runsErr;
-  const loading = scenariosLoading || runsLoading;
+  const error = scenariosErr || runsErr || metricsErr;
+  const loading = scenariosLoading || runsLoading || metricsLoading;
 
   if (error) {
     return (
@@ -22,7 +23,7 @@ export default function Overview() {
         <CardContent className="pt-6 flex flex-col items-center space-y-4">
           <AlertCircle className="w-12 h-12 text-red-500" />
           <p className="text-red-400 font-medium">{error.message}</p>
-          <Button onClick={() => { reloadScenarios(); reloadRuns(); }} variant="outline">
+          <Button onClick={() => { reloadScenarios(); reloadRuns(); reloadMetrics(); }} variant="outline">
             Retry
           </Button>
         </CardContent>
@@ -30,7 +31,7 @@ export default function Overview() {
     );
   }
 
-  if (loading || !runs || !scenarios) {
+  if (loading || !runs || !scenarios || !metrics) {
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -45,53 +46,17 @@ export default function Overview() {
     return (
       <div className="flex flex-col items-center justify-center h-full pt-12 space-y-6">
         <h2 className="text-2xl font-bold">No runs yet</h2>
-        <RunMatrixLauncher onComplete={reloadRuns} />
+        <RunMatrixLauncher onComplete={() => { reloadRuns(); reloadMetrics(); }} />
       </div>
     );
   }
 
-  // Compute Metrics
-  let totalTrials = 0;
-  let attackNoDefViolated = 0;
-  let attackNoDefCompleted = 0;
-  let attackGwViolated = 0;
-  let attackGwCompleted = 0;
-  let benignHeld = 0;
-  let benignCompleted = 0;
-  let inconclusiveOrFailed = 0;
+  const getPercent = (n: number, m: number) => 
+    m === 0 ? 'No data' : `${Math.round((n / m) * 100)}% (${n}/${m})`;
 
   const scenarioMap = new Map(scenarios.map(s => [s.task_id, s]));
+  let totalTrials = runs.reduce((acc, r) => acc + r.trials.length, 0);
 
-  runs.forEach(run => {
-    const scenario = scenarioMap.get(run.task_id);
-    if (!scenario) return;
-
-    run.trials.forEach(trial => {
-      totalTrials++;
-      if (trial.status !== 'completed' || trial.verdict === 'inconclusive') {
-        inconclusiveOrFailed++;
-        return;
-      }
-
-      if (scenario.kind === 'attack') {
-        if (run.defense === 'none') {
-          attackNoDefCompleted++;
-          if (trial.verdict === 'violated') attackNoDefViolated++;
-        } else if (run.defense === 'gateway') {
-          attackGwCompleted++;
-          if (trial.verdict === 'violated') attackGwViolated++;
-        }
-      } else if (scenario.kind === 'benign') {
-        benignCompleted++;
-        if (trial.verdict === 'held') benignHeld++;
-      }
-    });
-  });
-
-  const getPercent = (num: number, den: number) => 
-    den === 0 ? 'No data' : `${Math.round((num / den) * 100)}% (${num}/${den})`;
-
-  // Recent Runs (API returns newest first)
   const recentRuns = runs.slice(0, 10);
 
   return (
@@ -104,7 +69,7 @@ export default function Overview() {
             <CardTitle className="text-sm font-medium text-slate-400">Total Executions</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{runs.length} Runs</div>
+            <div className="text-2xl font-bold text-slate-200">{runs.length} Runs</div>
             <p className="text-xs text-slate-500 mt-1">{totalTrials} total trials</p>
           </CardContent>
         </Card>
@@ -114,7 +79,7 @@ export default function Overview() {
             <CardTitle className="text-sm font-medium text-slate-400">Attack Success (No Defense)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-400">{getPercent(attackNoDefViolated, attackNoDefCompleted)}</div>
+            <div className="text-2xl font-bold text-red-400">{getPercent(metrics.attack_violated_none.n, metrics.attack_violated_none.m)}</div>
           </CardContent>
         </Card>
 
@@ -123,7 +88,7 @@ export default function Overview() {
             <CardTitle className="text-sm font-medium text-slate-400">Residual with gateway</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-400">{getPercent(attackGwViolated, attackGwCompleted)}</div>
+            <div className="text-2xl font-bold text-amber-400">{getPercent(metrics.attack_violated_gateway.n, metrics.attack_violated_gateway.m)}</div>
           </CardContent>
         </Card>
 
@@ -140,7 +105,7 @@ export default function Overview() {
             </Tooltip>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-emerald-400">{getPercent(benignHeld, benignCompleted)}</div>
+            <div className="text-2xl font-bold text-emerald-400">{getPercent(metrics.benign_held_gateway.n, metrics.benign_held_gateway.m)}</div>
           </CardContent>
         </Card>
       </div>
@@ -159,7 +124,7 @@ export default function Overview() {
         <Tooltip>
           <TooltipTrigger className="flex items-center gap-1 cursor-help">
             <Info className="h-4 w-4" />
-            <span>{inconclusiveOrFailed} inconclusive/failed trials</span>
+            <span>{metrics.excluded_inconclusive + metrics.excluded_failed} inconclusive/failed trials</span>
           </TooltipTrigger>
           <TooltipContent>
             <p>Excluded from rate calculations.</p>
@@ -182,7 +147,6 @@ export default function Overview() {
           <TableBody>
             {recentRuns.map(run => {
               const scenario = scenarioMap.get(run.task_id);
-              // For overview, we show the verdict of the first trial, or 'inconclusive' if no trials
               const verdict = run.trials[0]?.verdict || 'inconclusive';
               
               let badgeColor = 'bg-slate-800 text-slate-300';

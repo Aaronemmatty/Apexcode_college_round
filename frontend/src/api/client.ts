@@ -4,7 +4,8 @@ import type {
   ScenarioDetail,
   Run,
   TraceResponse,
-  ReplayResponse
+  ReplayResponse,
+  CompareMetrics
 } from '../types/api';
 import { ApiError } from '../types/api';
 import type { Evaluation } from '../types/evaluation';
@@ -56,6 +57,8 @@ export const getEvaluation = (id: string) => fetchApi<Evaluation>(`/api/trials/$
 export const createRun = (data: { task_id: string; defense: string }) => 
   fetchApi<Run>('/api/runs', { method: 'POST', body: JSON.stringify(data) });
 export const replayTrial = (id: string) => fetchApi<ReplayResponse>(`/api/trials/${id}/replay`, { method: 'POST' });
+export const getCompare = () => fetchApi<CompareMetrics>('/api/compare');
+export const runReplayAll = () => fetchApi<{ replayed: number; consistent: number; inconsistent_trial_ids: string[] }>('/api/replays/run-all', { method: 'POST' });
 
 export function useAsync<T>(asyncFn: () => Promise<T>, dependencies: any[] = []) {
   const [data, setData] = useState<T | null>(null);
