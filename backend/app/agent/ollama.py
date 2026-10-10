@@ -229,24 +229,37 @@ class OllamaAgent(AgentBackend):
             # No more replies in replay
             return {"message": {"role": "assistant", "content": "Done."}}
 
+        # Only send permitted tools
+        permitted_tools = self.task.permitted_tools or TOOL_NAMES
+        filtered_tools = [t for t in OLLAMA_TOOLS if t["function"]["name"] in permitted_tools]
+
         payload = {
             "model": self.model,
             "messages": messages,
             "stream": False,
-            "tools": OLLAMA_TOOLS,
+            "tools": filtered_tools,
+            "keep_alive": "30m",
             "options": {
                 "temperature": self.temperature,
+                "num_predict": 1000,
+                "num_ctx": 4096,
             },
         }
         if self.seed is not None:
             payload["options"]["seed"] = self.seed
 
+        print(f"Ollama request -> model: {payload['model']}, options: {payload.get('options', {})}, keep_alive: {payload.get('keep_alive', 'default')}")
+        
+        import time
+        start_time = time.time()
         try:
             resp = httpx.post(
                 f"{self.url}/api/chat",
                 json=payload,
                 timeout=self.timeout,
             )
+            elapsed = time.time() - start_time
+            print(f"Ollama call completed in {elapsed:.2f}s")
             if resp.status_code != 200:
                 raise RuntimeError(f"Ollama returned HTTP {resp.status_code}: {resp.text[:200]}")
             data = resp.json()
