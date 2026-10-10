@@ -36,6 +36,7 @@ class ScenarioDef(BaseModel):
     category: str
     description: str
     user_prompt: str
+    severity: Optional[Literal["CRITICAL", "HIGH", "MEDIUM", "LOW"]] = None
     plan: list[ScenarioPlanStep]
     permissions: ScenarioPermissions
     documents: dict[str, ScenarioDocument] = Field(default_factory=dict)

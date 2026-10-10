@@ -32,6 +32,8 @@ class ScenarioSummaryResponse(BaseModel):
     category: str
     description: str
     user_prompt: str
+    severity: Optional[str] = None
+    group: Optional[str] = None
 
 
 class TaskPlanStepSchema(BaseModel):
@@ -47,6 +49,8 @@ class ScenarioDetailResponse(BaseModel):
     category: str
     description: str
     user_prompt: str
+    severity: Optional[str] = None
+    group: Optional[str] = None
     permitted_tools: list[str] = Field(default_factory=list)
     permitted_recipients: list[str] = Field(default_factory=list)
     plan: list[TaskPlanStepSchema] = Field(default_factory=list)
@@ -104,6 +108,7 @@ class InvariantResultSchema(BaseModel):
 class EvaluationResponse(BaseModel):
     trial_id: str
     verdict: str
+    severity: Optional[str] = None
     invariants: list[InvariantResultSchema] = Field(default_factory=list)
     task_completed: bool = False
     false_blocks: int = 0

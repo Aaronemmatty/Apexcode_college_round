@@ -57,7 +57,12 @@ def get_trial_evaluation(trial_id: str, db: Session = Depends(get_db)) -> Evalua
             detail=f"No evaluation found for trial '{trial_id}'.",
         )
 
-    return EvaluationResponse.model_validate_json(eval_row.result_json)
+    from app.evaluator.severity import derive_severity
+    import json
+    base = EvaluationResponse.model_validate_json(eval_row.result_json)
+    violated_ids = [inv.invariant_id for inv in base.invariants if inv.status == "violated"]
+    base.severity = derive_severity(violated_ids)
+    return base
 
 import uuid
 import json

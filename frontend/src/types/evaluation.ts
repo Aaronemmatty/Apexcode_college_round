@@ -1,10 +1,12 @@
-﻿/**
+/**
  * Evaluation and security invariant types mirroring backend/app/evaluator/models.py
  */
 
 export type Verdict = 'violated' | 'held' | 'inconclusive'
 
 export type InvariantStatus = 'violated' | 'held' | 'not_evaluable'
+
+export type Severity = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
 
 export interface EvidenceItem {
   event_ids: string[]
@@ -20,6 +22,7 @@ export interface InvariantResult {
 export interface Evaluation {
   trial_id: string
   verdict: Verdict
+  severity?: Severity | null
   invariants: InvariantResult[]
   task_completed: boolean
   false_blocks: number

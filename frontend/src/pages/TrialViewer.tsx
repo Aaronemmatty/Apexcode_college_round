@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { AlertCircle, CheckCircle2, Info, Copy, Loader2, FastForward, ShieldAlert, Terminal, Cpu, MessageSquare } from 'lucide-react';
 import type { TraceEvent } from '../types/events';
 import type { Verdict } from '../types/evaluation';
+import { SeverityBadge } from '@/components/SeverityBadge';
 
 function SyntaxHighlighter({ content }: { content: string }) {
   const [expanded, setExpanded] = useState(false);
@@ -328,6 +329,7 @@ export default function TrialViewer() {
                   {runContext ? runContext.defense : "Unknown defense"}
                 </Badge>
                 {getVerdictBadge(evaluation.verdict)}
+                <SeverityBadge severity={evaluation.severity} />
               </div>
             </div>
             <div className="flex flex-col gap-2 items-start md:items-end text-sm min-w-0">
@@ -372,8 +374,9 @@ export default function TrialViewer() {
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         <div className="w-full lg:w-1/3 shrink-0 flex flex-col gap-6 sticky top-8">
           <Card className="bg-slate-900 border-slate-800">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
               <CardTitle className="text-lg">Invariants Evaluation</CardTitle>
+              <SeverityBadge severity={evaluation.severity} />
             </CardHeader>
             <CardContent className="space-y-4">
               {evaluation.invariants.map(inv => (

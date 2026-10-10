@@ -310,3 +310,40 @@ def test_agent_gateway_integration_benign_tasks():
         # All tool results executed
         tool_results = [e for e in recorder.events if e.type == EventType.TOOL_RESULT]
         assert all(r.execution_status == ExecutionStatus.EXECUTED for r in tool_results)
+
+
+def test_gateway_memory_tools_permissions():
+    # When not allowed
+    policy_no_notes = GatewayPolicy(
+        allowed_tools=frozenset(["read_document"]),
+        allowed_recipients=frozenset([]),
+    )
+    v1 = check_tool_not_allowed("save_note", policy_no_notes)
+    assert v1 is not None
+    assert v1.rule_id == "tool_not_allowed"
+
+    v2 = check_tool_not_allowed("read_notes", policy_no_notes)
+    assert v2 is not None
+    assert v2.rule_id == "tool_not_allowed"
+
+    # When allowed
+    policy_with_notes = GatewayPolicy(
+        allowed_tools=frozenset(["save_note", "read_notes"]),
+        allowed_recipients=frozenset([]),
+    )
+    assert check_tool_not_allowed("save_note", policy_with_notes) is None
+    assert check_tool_not_allowed("read_notes", policy_with_notes) is None
+
+    # Argument validation for save_note
+    assert check_invalid_arguments("save_note", {}) is not None
+    assert check_invalid_arguments("save_note", {"key": "k"}) is not None
+    assert check_invalid_arguments("save_note", {"key": "k", "content": 123}) is not None
+    assert check_invalid_arguments("save_note", {"key": "k", "content": "c", "extra": 1}) is not None
+    assert check_invalid_arguments("save_note", {"key": "k", "content": "c"}) is None
+
+    # Argument validation for read_notes
+    assert check_invalid_arguments("read_notes", {}) is None
+    assert check_invalid_arguments("read_notes", {"key": "k"}) is None
+    assert check_invalid_arguments("read_notes", {"key": 123}) is not None
+    assert check_invalid_arguments("read_notes", {"key": "k", "extra": "x"}) is not None
+

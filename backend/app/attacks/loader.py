@@ -100,6 +100,7 @@ def load_scenarios(force_reload: bool = False) -> dict[str, TaskSpec]:
             category=scenario.category,
             description=scenario.description,
             user_prompt=scenario.user_prompt,
+            severity=scenario.severity,
             plan=plan,
             permitted_tools=scenario.permissions.permitted_tools,
             permitted_recipients=scenario.permissions.permitted_recipients,

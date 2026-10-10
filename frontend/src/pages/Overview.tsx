@@ -9,6 +9,7 @@ import { AlertCircle, ArrowRight, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { RunMatrixLauncher } from '../components/RunMatrixLauncher';
 import { formatRate } from '../lib/format';
+import { SeverityBadge } from '@/components/SeverityBadge';
 
 export default function Overview() {
   const { data: scenarios, error: scenariosErr, loading: scenariosLoading, reload: reloadScenarios } = useAsync(listScenarios);
@@ -140,6 +141,7 @@ export default function Overview() {
               <TableHead className="text-slate-400">Run ID</TableHead>
               <TableHead className="text-slate-400">Scenario</TableHead>
               <TableHead className="text-slate-400">Kind</TableHead>
+              <TableHead className="text-slate-400">Severity</TableHead>
               <TableHead className="text-slate-400">Defense</TableHead>
               <TableHead className="text-slate-400">Verdict</TableHead>
             </TableRow>
@@ -164,6 +166,9 @@ export default function Overview() {
                     <Badge variant="outline" className="bg-slate-800 text-slate-300 border-slate-700">
                       {scenario?.kind || 'unknown'}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <SeverityBadge severity={scenario?.severity} />
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="bg-slate-800 text-slate-300 border-slate-700">

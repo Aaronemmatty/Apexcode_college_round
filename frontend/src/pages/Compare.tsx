@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { RunMatrixLauncher } from '../components/RunMatrixLauncher';
 import { formatRate } from '../lib/format';
+import { SeverityBadge } from '@/components/SeverityBadge';
 
 export default function Compare() {
   const { data, error, loading, reload } = useAsync(getCompare);
@@ -282,9 +283,12 @@ export default function Compare() {
                       <td className="px-4 py-3">
                         <div className="font-medium text-slate-200">{r.title}</div>
                         <div className="text-xs text-slate-500 font-mono mt-0.5">{r.task_id}</div>
-                        <Badge variant="outline" className="mt-1 text-[10px] uppercase bg-slate-950">
-                          {r.kind}
-                        </Badge>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <Badge variant="outline" className="text-[10px] uppercase bg-slate-950">
+                            {r.kind}
+                          </Badge>
+                          <SeverityBadge severity={r.severity} />
+                        </div>
                       </td>
                       <td className="px-4 py-3">
                         {r.none ? (

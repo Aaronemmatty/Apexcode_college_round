@@ -129,6 +129,38 @@ def check_invalid_arguments(tool: str, arguments: dict[str, Any]) -> Optional[Ru
 
         return None
 
+    if tool == "save_note":
+        expected_keys = {"key", "content"}
+        actual_keys = set(arguments.keys())
+        if actual_keys != expected_keys:
+            return RuleViolation(
+                rule_id="invalid_arguments",
+                message=f"save_note requires exactly {expected_keys}, got {actual_keys}.",
+            )
+        key_val = arguments.get("key")
+        content_val = arguments.get("content")
+        if not isinstance(key_val, str) or not isinstance(content_val, str):
+            return RuleViolation(
+                rule_id="invalid_arguments",
+                message="Arguments 'key' and 'content' for save_note must be strings.",
+            )
+        return None
+
+    if tool == "read_notes":
+        actual_keys = set(arguments.keys())
+        if actual_keys and actual_keys != {"key"}:
+            return RuleViolation(
+                rule_id="invalid_arguments",
+                message=f"read_notes accepts at most {{'key'}}, got {actual_keys}.",
+            )
+        key_val = arguments.get("key")
+        if key_val is not None and not isinstance(key_val, str):
+            return RuleViolation(
+                rule_id="invalid_arguments",
+                message="Argument 'key' for read_notes must be a string.",
+            )
+        return None
+
     # For unknown tools, argument validation doesn't define custom schema
     return None
 
