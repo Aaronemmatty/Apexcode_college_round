@@ -380,7 +380,12 @@ export default function Overview() {
 
       {/* Recent Run History Table */}
       <div>
-        <h2 className="text-xl font-bold mb-4 text-white">Recent Run History</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold text-white">Recent Run History</h2>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400">Benchmarks are computed from deterministic scripted runs only.</span>
+          </div>
+        </div>
         <div className="rounded-md border border-slate-800 bg-slate-900 overflow-x-auto min-w-0">
           <Table>
             <TableHeader>
@@ -388,6 +393,7 @@ export default function Overview() {
                 <TableHead className="text-slate-400">Run ID</TableHead>
                 <TableHead className="text-slate-400">Scenario</TableHead>
                 <TableHead className="text-slate-400">Kind</TableHead>
+                <TableHead className="text-slate-400">Backend</TableHead>
                 <TableHead className="text-slate-400">Defense</TableHead>
                 <TableHead className="text-slate-400">Verdict</TableHead>
               </TableRow>
@@ -419,12 +425,30 @@ export default function Overview() {
                       </div>
                     </TableCell>
                     <TableCell>
+                      {run.backend === 'ollama' ? (
+                        <Badge variant="outline" className="border-indigo-500 text-indigo-400 bg-indigo-950/40 text-xs font-mono">
+                          Ollama (Live)
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="border-slate-700 text-slate-400 bg-slate-900 text-xs">
+                          Scripted
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <Badge variant="outline" className="bg-slate-800 text-slate-300 border-slate-700 capitalize text-xs">
                         {run.defense}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge className={badgeColor}>{verdict.toUpperCase()}</Badge>
+                      <div className="flex items-center gap-1.5">
+                        <Badge className={badgeColor}>{verdict.toUpperCase()}</Badge>
+                        {run.summary && (
+                          <Badge variant="outline" className="border-purple-600 text-purple-300 bg-purple-950/40 text-xs font-mono">
+                            {run.summary}
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );

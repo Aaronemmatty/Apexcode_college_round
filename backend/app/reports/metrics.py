@@ -37,6 +37,12 @@ def get_compare_metrics(db: Session):
     excluded_inconclusive = 0
     
     for t_row, r_row in trials_q:
+        if getattr(r_row, "backend", "scripted") != "scripted":
+            continue
+        if getattr(t_row, "backend", "scripted") != "scripted":
+            continue
+        if r_row.task_id.startswith("gen_") or r_row.task_id.startswith("custom_"):
+            continue
         if t_row.status == "failed":
             excluded_failed += 1
             continue
@@ -290,12 +296,18 @@ def compute_regression_diff(
     
     if rerun:
         for t in tasks:
-            execute_run(db, t.task_id, defense_a)
-            execute_run(db, t.task_id, defense_b)
+            execute_run(db, t.task_id, defense_a, backend="scripted")
+            execute_run(db, t.task_id, defense_b, backend="scripted")
             
     trials_q = db.execute(select(TrialRow, RunRow).join(RunRow, TrialRow.run_id == RunRow.run_id)).all()
     grouped = defaultdict(list)
     for t_row, r_row in trials_q:
+        if getattr(r_row, "backend", "scripted") != "scripted":
+            continue
+        if getattr(t_row, "backend", "scripted") != "scripted":
+            continue
+        if r_row.task_id.startswith("gen_") or r_row.task_id.startswith("custom_"):
+            continue
         if t_row.status != "completed":
             continue
         ev_row = db.execute(select(EvaluationRow).where(EvaluationRow.trial_id == t_row.trial_id)).scalar()

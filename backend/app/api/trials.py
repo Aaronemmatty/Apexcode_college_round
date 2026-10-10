@@ -88,7 +88,22 @@ def create_replay(trial_id: str, db: Session = Depends(get_db)) -> ReplayRespons
     event_rows = db.query(EventRow).filter(EventRow.trial_id == trial_id).order_by(EventRow.seq).all()
     original_events = [TraceEvent.model_validate_json(r.payload) for r in event_rows]
 
-    simulated = simulate_trial(task, run.defense, run.run_id, trial.trial_id)
+    backend = getattr(trial, "backend", getattr(run, "backend", "scripted"))
+    saved_replies = None
+    if backend == "ollama" and getattr(trial, "model_replies_json", None):
+        try:
+            saved_replies = json.loads(trial.model_replies_json)
+        except Exception:
+            saved_replies = []
+
+    simulated = simulate_trial(
+        task=task,
+        defense=run.defense,
+        run_id=run.run_id,
+        trial_id=trial.trial_id,
+        backend=backend,
+        saved_replies=saved_replies,
+    )
     replay_events = simulated.events
     
     differences = []

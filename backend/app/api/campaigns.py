@@ -21,6 +21,7 @@ class CampaignCreateRequest(BaseModel):
     defense: str = Field(default="gateway")
     seed_scenarios: list[str] = Field(default_factory=list)
     stop_after_bypasses: Optional[int] = None
+    backend: str = Field(default="scripted")
 
 
 @router.post("", status_code=200)
@@ -36,6 +37,7 @@ def start_campaign(
         defense=body.defense,
         seed_scenarios=body.seed_scenarios if body.seed_scenarios else None,
         stop_after_bypasses=body.stop_after_bypasses,
+        backend=body.backend,
     )
 
 

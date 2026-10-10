@@ -39,6 +39,9 @@ class CustomAttackRequest(BaseModel):
     base_scenario_id: Optional[str] = None
     seed: Optional[int] = 42
     title: Optional[str] = None
+    backend: str = Field(default="scripted")
+    n_runs: Optional[int] = None
+    backend_config: dict[str, Any] = Field(default_factory=dict)
 
 
 class CustomAttackResponse(BaseModel):
@@ -53,6 +56,9 @@ class CustomAttackResponse(BaseModel):
     warning: Optional[str] = None
     task_completed: bool
     false_blocks: int
+    backend: str = "scripted"
+    summary: Optional[str] = None
+    fallback_notice: Optional[str] = None
     run: dict[str, Any]
     trial: dict[str, Any]
     evaluation: dict[str, Any]
@@ -240,8 +246,15 @@ def execute_custom_attack(
     db.merge(gen_row)
     db.commit()
 
-    # Run through normal pipeline with chosen defense
-    run_row = execute_run(db, task_id=custom_id, defense=body.defense)
+    # Run through normal pipeline with chosen defense and backend
+    run_row = execute_run(
+        db,
+        task_id=custom_id,
+        defense=body.defense,
+        backend=body.backend,
+        backend_config=body.backend_config,
+        n_runs=body.n_runs,
+    )
     trial_row = run_row.trials[0]
 
     eval_row = trial_row.evaluation
@@ -272,16 +285,22 @@ def execute_custom_attack(
 
     # Directives found
     directives_found = [m.group(0) for m in DIRECTIVE_REGEX.finditer(clean_text)]
-    warning = (
-        "The scripted agent only follows [[ACTION ...]] lines"
-        if not directives_found
-        else None
-    )
+    warning = None
+    if getattr(run_row, "backend", "scripted") == "scripted" and not directives_found:
+        warning = "The scripted agent only follows [[ACTION ...]] lines"
+
+    summary_str = None
+    if run_row.trials:
+        violated_n = sum(1 for t in run_row.trials if t.evaluation and t.evaluation.verdict == "violated")
+        total_n = len(run_row.trials)
+        if total_n > 1 or getattr(run_row, "backend", "scripted") == "ollama":
+            summary_str = f"violated {violated_n}/{total_n}"
 
     run_dict = {
         "run_id": run_row.run_id,
         "task_id": run_row.task_id,
         "defense": run_row.defense,
+        "backend": getattr(run_row, "backend", "scripted"),
         "status": run_row.status,
         "created_at": run_row.created_at.isoformat() if run_row.created_at else None,
     }
@@ -289,6 +308,7 @@ def execute_custom_attack(
         "trial_id": trial_row.trial_id,
         "run_id": trial_row.run_id,
         "task_id": trial_row.task_id,
+        "backend": getattr(trial_row, "backend", "scripted"),
         "status": trial_row.status,
         "error": trial_row.error,
         "started_at": trial_row.started_at.isoformat() if trial_row.started_at else None,
@@ -316,6 +336,9 @@ def execute_custom_attack(
         warning=warning,
         task_completed=eval_data.get("task_completed", False),
         false_blocks=eval_data.get("false_blocks", 0),
+        backend=getattr(run_row, "backend", "scripted"),
+        summary=summary_str,
+        fallback_notice=getattr(run_row, "fallback_notice", None),
         run=run_dict,
         trial=trial_dict,
         evaluation=eval_dict,

@@ -54,11 +54,12 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
 export const getHealth = () => fetchApi<HealthResponse>('/api/health');
 export const listScenarios = () => fetchApi<ScenarioSummary[]>('/api/scenarios');
 export const getScenario = (id: string) => fetchApi<ScenarioDetail>(`/api/scenarios/${id}`);
-export const listRuns = () => fetchApi<Run[]>('/api/runs');
+export const listRuns = (backend?: string) =>
+  fetchApi<Run[]>(backend ? `/api/runs?backend=${encodeURIComponent(backend)}` : '/api/runs');
 export const getRun = (id: string) => fetchApi<Run>(`/api/runs/${id}`);
 export const getTrace = (id: string) => fetchApi<TraceResponse>(`/api/trials/${id}/trace`);
 export const getEvaluation = (id: string) => fetchApi<Evaluation>(`/api/trials/${id}/evaluation`);
-export const createRun = (data: { task_id: string; defense: string }) => 
+export const createRun = (data: { task_id: string; defense: string; backend?: string; n_runs?: number; backend_config?: any }) => 
   fetchApi<Run>('/api/runs', { method: 'POST', body: JSON.stringify(data) });
 export const replayTrial = (id: string) => fetchApi<ReplayResponse>(`/api/trials/${id}/replay`, { method: 'POST' });
 export const getCompare = () => fetchApi<CompareMetrics>('/api/compare');
@@ -118,7 +119,7 @@ export function useAsync<T>(asyncFn: () => Promise<T>, dependencies: any[] = [])
   return { data, error, loading, reload: execute };
 }
 
-export const startCampaign = (body: { budget: number; seed: number; defense: string; seed_scenarios?: string[] }) =>
+export const startCampaign = (body: { budget: number; seed: number; defense: string; seed_scenarios?: string[]; backend?: string }) =>
   fetchApi<CampaignResult>('/api/campaigns', {
     method: 'POST',
     body: JSON.stringify(body),
@@ -131,7 +132,7 @@ export const getCampaign = (campaignId: string) =>
   fetchApi<CampaignResult>(`/api/campaigns/${campaignId}`);
 
 
-export const executeCustomAttack = (body: { payload: string; defense: string; seed?: number; title?: string }) =>
+export const executeCustomAttack = (body: { payload: string; defense: string; seed?: number; title?: string; backend?: string; n_runs?: number }) =>
   fetchApi<{
     task_id: string;
     run_id: string;
@@ -141,6 +142,9 @@ export const executeCustomAttack = (body: { payload: string; defense: string; se
     violated_invariants: string[];
     task_completed: boolean;
     false_blocks: number;
+    backend?: string;
+    summary?: string;
+    fallback_notice?: string;
     events: any[];
   }>('/api/attacks/custom', {
     method: 'POST',
@@ -165,6 +169,9 @@ export const postCustomAttack = (body: {
   base_scenario_id?: string;
   seed?: number;
   title?: string;
+  backend?: string;
+  n_runs?: number;
+  backend_config?: any;
 }) =>
   fetchApi<CustomAttackResult>('/api/attacks/custom', {
     method: 'POST',

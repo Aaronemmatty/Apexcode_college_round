@@ -55,6 +55,7 @@ def run_discovery_campaign(
     defense: str = "gateway",
     seed_scenarios: list[str] | None = None,
     stop_after_bypasses: int | None = None,
+    backend: str = "scripted",
 ) -> dict[str, Any]:
     """Execute autonomous red team discovery campaign guided by gateway feedback."""
     Base.metadata.create_all(bind=db.get_bind())
@@ -138,7 +139,7 @@ def run_discovery_campaign(
         db.commit()
 
         # 2. Validity check: run with defense "none" first
-        run_none = execute_run(db, task_id=task_id, defense="none")
+        run_none = execute_run(db, task_id=task_id, defense="none", backend=backend)
         trial_none = run_none.trials[0]
         ev_none = trial_none.evaluation
         verdict_none = ev_none.verdict if ev_none else "inconclusive"
@@ -167,7 +168,7 @@ def run_discovery_campaign(
         valid_count += 1
 
         # 3. Valid attack: run against target defense
-        run_target = execute_run(db, task_id=task_id, defense=defense)
+        run_target = execute_run(db, task_id=task_id, defense=defense, backend=backend)
         trial_target = run_target.trials[0]
         ev_target = trial_target.evaluation
         verdict_target = ev_target.verdict if ev_target else "inconclusive"
@@ -233,6 +234,7 @@ def run_discovery_campaign(
         "seed": seed,
         "budget": effective_budget,
         "defense": defense,
+        "backend": backend,
         "seed_scenarios": [t.task_id for t in seed_tasks],
         "status": "completed",
         "trials_executed": len(attempts),

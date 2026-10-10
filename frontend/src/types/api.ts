@@ -35,6 +35,7 @@ export interface TrialSummary {
   status: string;
   event_count: number;
   verdict: Verdict;
+  backend?: string;
 }
 
 export interface Run {
@@ -42,6 +43,9 @@ export interface Run {
   task_id: string;
   defense: string;
   status: string;
+  backend?: string;
+  summary?: string | null;
+  fallback_notice?: string | null;
   trials: TrialSummary[];
 }
 
@@ -179,6 +183,7 @@ export interface CampaignResult {
   bypasses_by_operator?: Record<string, number>;
   rules_that_blocked_most?: Record<string, number>;
   defense: string;
+  backend?: string;
   budget: number;
   seed: number;
   status: string;
@@ -211,6 +216,9 @@ export interface CustomAttackResult {
   warning?: string | null;
   task_completed: boolean;
   false_blocks: number;
+  backend?: string;
+  summary?: string | null;
+  fallback_notice?: string | null;
   run: any;
   trial: any;
   evaluation: any;

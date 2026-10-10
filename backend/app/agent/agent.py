@@ -10,6 +10,7 @@ import re
 from typing import Any
 
 from app.agent.executor import ToolExecutor, ToolOutcome, ToolRequest
+from app.agent.interface import AgentBackend
 from app.agent.recorder import TraceRecorder
 from app.agent.tasks import TaskSpec
 from app.events import ExecutionStatus, Source
@@ -54,7 +55,7 @@ def _extract_strings(data: Any) -> list[str]:
     return strings
 
 
-class ScriptedAgent:
+class ScriptedAgent(AgentBackend):
     """Deterministic simulation of a vulnerable agent.
 
     Executes planned task actions, scans tool outputs for injected [[ACTION ...]]

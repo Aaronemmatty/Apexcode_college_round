@@ -2,13 +2,15 @@
 
 from datetime import datetime, timezone
 import json
+import logging
 import uuid
-from typing import Any
-from pydantic import BaseModel
+from typing import Any, Optional
+from pydantic import BaseModel, Field
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.agent.agent import ScriptedAgent
+from app.agent.ollama import OllamaAgent, check_ollama_available
 from app.agent.executor import DirectExecutor
 from app.agent.recorder import TraceRecorder
 from app.agent.tasks import get_task, TaskSpec
@@ -21,7 +23,11 @@ from app.gateway.policy import GatewayPolicy
 from app.sandbox.tools import ToolEnvironment
 from app.events import TraceEvent
 
+logger = logging.getLogger(__name__)
+
 SUPPORTED_DEFENSES = {"none", "hardening", "prompt_hardening", "gateway"}
+SUPPORTED_BACKENDS = {"scripted", "ollama"}
+
 
 class SimulatedTrial(BaseModel):
     events: list[TraceEvent]
@@ -29,8 +35,18 @@ class SimulatedTrial(BaseModel):
     status: str
     error: str | None
     evaluation: Evaluation
+    model_replies: list[dict[str, Any]] = Field(default_factory=list)
 
-def simulate_trial(task: TaskSpec, defense: str, run_id: str, trial_id: str) -> SimulatedTrial:
+
+def simulate_trial(
+    task: TaskSpec,
+    defense: str,
+    run_id: str,
+    trial_id: str,
+    backend: str = "scripted",
+    backend_config: Optional[dict[str, Any]] = None,
+    saved_replies: Optional[list[dict[str, Any]]] = None,
+) -> SimulatedTrial:
     env = ToolEnvironment(documents_overlay=task.documents)
     direct = DirectExecutor(env)
     recorder = TraceRecorder(run_id=run_id, trial_id=trial_id)
@@ -41,9 +57,25 @@ def simulate_trial(task: TaskSpec, defense: str, run_id: str, trial_id: str) -> 
         policy = GatewayPolicy.from_task(task)
         gateway = SecurityGateway(policy)
         executor = GatewayExecutor(inner=direct, gateway=gateway, recorder=recorder)
-        agent = ScriptedAgent(task=task, executor=executor, recorder=recorder)
-    elif defense_mode == "hardening":
+    else:
         executor = direct
+
+    # Instantiate chosen agent backend
+    if backend == "ollama":
+        cfg = backend_config or {}
+        agent = OllamaAgent(
+            task=task,
+            executor=executor,
+            recorder=recorder,
+            url=cfg.get("url", "http://localhost:11434"),
+            model=cfg.get("model", "qwen2.5:7b"),
+            temperature=cfg.get("temperature", 0.0),
+            seed=cfg.get("seed", 42),
+            timeout=cfg.get("timeout", 60.0),
+            max_steps=cfg.get("max_steps", 10),
+            saved_replies=saved_replies,
+        )
+    elif defense_mode == "hardening":
         agent = ScriptedAgent(
             task=task,
             executor=executor,
@@ -52,13 +84,15 @@ def simulate_trial(task: TaskSpec, defense: str, run_id: str, trial_id: str) -> 
             filter_prompt_injection=True,
         )
     else:
-        executor = direct
         agent = ScriptedAgent(task=task, executor=executor, recorder=recorder)
 
     trial_status = "completed"
     trial_error = None
     try:
         agent.run()
+        if backend == "ollama" and getattr(agent, "inconclusive", False):
+            trial_status = "inconclusive"
+            trial_error = getattr(agent, "inconclusive_reason", "Inconclusive Ollama response")
     except Exception as exc:
         trial_status = "failed"
         trial_error = str(exc)
@@ -66,13 +100,25 @@ def simulate_trial(task: TaskSpec, defense: str, run_id: str, trial_id: str) -> 
     env_state = {"outbox": [dict(m) for m in env.outbox]}
 
     try:
-        evaluation = evaluate_trial(
-            trial_id=trial_id,
-            trial_status=trial_status,
-            task=task,
-            events=recorder.events,
-            env_state=env_state,
-        )
+        if trial_status == "inconclusive":
+            evaluation = Evaluation(
+                trial_id=trial_id,
+                verdict=Verdict.INCONCLUSIVE,
+                invariants=[],
+                task_completed=False,
+                false_blocks=0,
+                notes=[trial_error or "Inconclusive Ollama trial (timeout or parse error)."],
+            )
+        else:
+            evaluation = evaluate_trial(
+                trial_id=trial_id,
+                trial_status=trial_status,
+                task=task,
+                events=recorder.events,
+                env_state=env_state,
+            )
+            if backend == "ollama" and getattr(agent, "inconclusive", False):
+                evaluation.verdict = Verdict.INCONCLUSIVE
     except Exception as eval_exc:
         evaluation = Evaluation(
             trial_id=trial_id,
@@ -83,15 +129,31 @@ def simulate_trial(task: TaskSpec, defense: str, run_id: str, trial_id: str) -> 
             notes=[f"Evaluator error: {str(eval_exc)}"],
         )
 
+    model_replies: list[dict[str, Any]] = []
+    if backend == "ollama":
+        if getattr(agent, "is_replay", False):
+            model_replies = getattr(agent, "saved_replies", [])
+        else:
+            model_replies = getattr(agent, "recorded_replies", [])
+
     return SimulatedTrial(
         events=recorder.events,
         env_state=env_state,
         status=trial_status,
         error=trial_error,
-        evaluation=evaluation
+        evaluation=evaluation,
+        model_replies=model_replies,
     )
 
-def execute_run(db: Session, task_id: str, defense: str = "none") -> RunRow:
+
+def execute_run(
+    db: Session,
+    task_id: str,
+    defense: str = "none",
+    backend: str = "scripted",
+    backend_config: Optional[dict[str, Any]] = None,
+    n_runs: Optional[int] = None,
+) -> RunRow:
     """Execute a task trial run synchronously, capturing traces and evaluation."""
     if defense not in SUPPORTED_DEFENSES:
         raise HTTPException(
@@ -102,8 +164,14 @@ def execute_run(db: Session, task_id: str, defense: str = "none") -> RunRow:
             ),
         )
 
+    if backend not in SUPPORTED_BACKENDS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported backend '{backend}'. Supported backends are: {sorted(SUPPORTED_BACKENDS)}.",
+        )
+
     if defense == "prompt_hardening":
-        defense = "hardening" 
+        defense = "hardening"
 
     task = get_task(task_id, db=db)
     if task is None:
@@ -112,57 +180,92 @@ def execute_run(db: Session, task_id: str, defense: str = "none") -> RunRow:
             detail=f"Task '{task_id}' not found.",
         )
 
+    # Check Ollama availability if requested; fallback clearly to scripted if unavailable
+    effective_backend = backend
+    fallback_notice = None
+    if backend == "ollama":
+        cfg = backend_config or {}
+        url = cfg.get("url", "http://localhost:11434")
+        model = cfg.get("model", "qwen2.5:7b")
+        available, err_msg = check_ollama_available(url=url, model=model)
+        if not available:
+            effective_backend = "scripted"
+            fallback_notice = f"Ollama is unavailable ({err_msg}). Fell back to scripted mode."
+            logger.warning(fallback_notice)
+
+    # Multi-run count for live models (default 3, max 5, min 1)
+    if effective_backend == "ollama":
+        runs_count = n_runs if n_runs is not None else 3
+        runs_count = max(1, min(runs_count, 5))
+    else:
+        runs_count = 1
+
     run_id = f"run_{uuid.uuid4().hex[:8]}"
-    trial_id = f"trial_{uuid.uuid4().hex[:8]}"
     now_utc = datetime.now(timezone.utc)
 
     run_row = RunRow(
         run_id=run_id,
         task_id=task_id,
         defense=defense,
+        backend=effective_backend,
         status="running",
         created_at=now_utc,
     )
-    trial_row = TrialRow(
-        trial_id=trial_id,
-        run_id=run_id,
-        task_id=task_id,
-        status="running",
-        started_at=now_utc,
-    )
     db.add(run_row)
-    db.add(trial_row)
     db.flush()
 
-    simulated = simulate_trial(task, defense, run_id, trial_id)
-
-    # Persist all recorded events
-    for seq, event in enumerate(simulated.events, start=1):
-        event_row = EventRow(
+    for idx in range(runs_count):
+        trial_id = f"trial_{uuid.uuid4().hex[:8]}"
+        trial_row = TrialRow(
             trial_id=trial_id,
-            seq=seq,
-            payload=event.model_dump_json(),
+            run_id=run_id,
+            task_id=task_id,
+            backend=effective_backend,
+            status="running",
+            started_at=datetime.now(timezone.utc),
         )
-        db.add(event_row)
+        db.add(trial_row)
+        db.flush()
 
-    env_state_row = TrialEnvStateRow(
-        trial_id=trial_id,
-        state_json=json.dumps(simulated.env_state),
-    )
-    db.add(env_state_row)
+        simulated = simulate_trial(
+            task=task,
+            defense=defense,
+            run_id=run_id,
+            trial_id=trial_id,
+            backend=effective_backend,
+            backend_config=backend_config,
+        )
 
-    eval_row = EvaluationRow(
-        trial_id=trial_id,
-        verdict=simulated.evaluation.verdict.value,
-        result_json=simulated.evaluation.model_dump_json(),
-    )
-    db.add(eval_row)
+        # Persist all recorded events
+        for seq, event in enumerate(simulated.events, start=1):
+            event_row = EventRow(
+                trial_id=trial_id,
+                seq=seq,
+                payload=event.model_dump_json(),
+            )
+            db.add(event_row)
 
-    trial_row.status = simulated.status
-    trial_row.error = simulated.error
-    trial_row.finished_at = datetime.now(timezone.utc)
+        env_state_row = TrialEnvStateRow(
+            trial_id=trial_id,
+            state_json=json.dumps(simulated.env_state),
+        )
+        db.add(env_state_row)
 
-    run_row.status = "completed" if simulated.status == "completed" else "failed"
+        eval_row = EvaluationRow(
+            trial_id=trial_id,
+            verdict=simulated.evaluation.verdict.value,
+            result_json=simulated.evaluation.model_dump_json(),
+        )
+        db.add(eval_row)
+
+        trial_row.status = simulated.status
+        trial_row.error = simulated.error
+        trial_row.finished_at = datetime.now(timezone.utc)
+        if simulated.model_replies:
+            trial_row.model_replies_json = json.dumps(simulated.model_replies)
+
+    run_row.status = "completed" if all(t.status in ("completed", "inconclusive") for t in run_row.trials) else "failed"
+    setattr(run_row, "fallback_notice", fallback_notice)
 
     db.commit()
     db.refresh(run_row)

@@ -49,6 +49,8 @@ export default function AttackLab() {
   const [text, setText] = useState<string>('');
   const [selectedScenarioId, setSelectedScenarioId] = useState<string>('');
   const [defense, setDefense] = useState<string>('none');
+  const [backend, setBackend] = useState<string>('scripted');
+  const [nRuns, setNRuns] = useState<number>(3);
   const [seed, setSeed] = useState<number>(42);
 
   const [running, setRunning] = useState<boolean>(false);
@@ -112,9 +114,12 @@ export default function AttackLab() {
         defense,
         base_scenario_id: selectedScenarioId || undefined,
         seed,
+        backend,
+        n_runs: backend === 'ollama' ? nRuns : 1,
       });
       setResult(res);
-      showToast(`Custom attack finished: ${res.verdict.toUpperCase()}${res.severity ? ` (${res.severity})` : ''}`, res.verdict === 'violated' ? 'error' : 'success');
+      const summaryText = res.summary ? ` [${res.summary}]` : '';
+      showToast(`Custom attack finished: ${res.verdict.toUpperCase()}${summaryText}${res.severity ? ` (${res.severity})` : ''}`, res.verdict === 'violated' ? 'error' : 'success');
 
       // Add to session history
       const historyEntry: HistoryItem = {
@@ -293,9 +298,9 @@ export default function AttackLab() {
             </code>
           </div>
 
-          {/* Controls: Defense, Seed, Run button */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-3 border-t border-slate-800/60">
-            <div className="sm:col-span-2">
+          {/* Controls: Defense, Backend, N Runs, Seed, Run button */}
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 pt-3 border-t border-slate-800/60">
+            <div>
               <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
                 Target Defense Mode
               </label>
@@ -304,20 +309,57 @@ export default function AttackLab() {
                 onChange={(e) => setDefense(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
               >
-                <option value="none">No Defense (none - baseline)</option>
-                <option value="gateway">Security Gateway (gateway - deterministic guardrails)</option>
+                <option value="none">No Defense (none)</option>
+                <option value="gateway">Security Gateway (gateway)</option>
               </select>
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
-                PRNG Seed
+                Agent Backend
               </label>
-              <input
-                type="number"
-                value={seed}
-                onChange={(e) => setSeed(parseInt(e.target.value) || 0)}
-                className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
-              />
+              <select
+                value={backend}
+                onChange={(e) => setBackend(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              >
+                <option value="scripted">Scripted Agent (default)</option>
+                <option value="ollama">Ollama (qwen2.5:7b)</option>
+              </select>
+            </div>
+            {backend === 'ollama' ? (
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                  Repetitions (N)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={nRuns}
+                  onChange={(e) => setNRuns(Math.max(1, Math.min(5, parseInt(e.target.value) || 1)))}
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                  PRNG Seed
+                </label>
+                <input
+                  type="number"
+                  value={seed}
+                  onChange={(e) => setSeed(parseInt(e.target.value) || 0)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"
+                />
+              </div>
+            )}
+            <div>
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">
+                Model Status
+              </label>
+              <div className="text-xs font-mono text-slate-400 py-2">
+                {backend === 'ollama' ? 'qwen2.5:7b @ :11434' : 'Deterministic'}
+              </div>
             </div>
             <div className="flex items-end">
               <Button
@@ -353,6 +395,13 @@ export default function AttackLab() {
       {/* Result Panel */}
       {result ? (
         <div className="space-y-6">
+          {result.fallback_notice && (
+            <div className="p-3 rounded-md bg-amber-950/40 border border-amber-800 text-amber-300 text-xs flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+              <span>{result.fallback_notice}</span>
+            </div>
+          )}
+
           <Card className="bg-slate-900 border-slate-800">
             <CardHeader className="pb-3">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -367,6 +416,16 @@ export default function AttackLab() {
                     >
                       {result.verdict}
                     </Badge>
+                    {result.summary && (
+                      <Badge variant="outline" className="border-purple-600 text-purple-300 bg-purple-950/40 font-mono text-xs">
+                        {result.summary}
+                      </Badge>
+                    )}
+                    {result.backend === 'ollama' && (
+                      <Badge variant="outline" className="border-indigo-500 text-indigo-300 bg-indigo-950/40 font-mono text-xs">
+                        Live Model (Ollama)
+                      </Badge>
+                    )}
                     <SeverityBadge severity={result.severity} />
                     <span className="text-xs text-slate-500 font-mono">
                       Task: {result.task_id} | Trial: {result.trial_id}

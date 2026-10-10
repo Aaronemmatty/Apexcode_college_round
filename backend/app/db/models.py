@@ -17,6 +17,7 @@ class RunRow(Base):
     task_id: Mapped[str] = mapped_column(String(64), nullable=False)
     defense: Mapped[str] = mapped_column(String(32), nullable=False, default="none")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="running")
+    backend: Mapped[str] = mapped_column(String(32), nullable=False, default="scripted")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
@@ -31,6 +32,8 @@ class TrialRow(Base):
     run_id: Mapped[str] = mapped_column(String(32), ForeignKey("runs.run_id"), nullable=False, index=True)
     task_id: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="running")  # completed | failed
+    backend: Mapped[str] = mapped_column(String(32), nullable=False, default="scripted")
+    model_replies_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)

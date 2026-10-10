@@ -30,6 +30,17 @@ def init_db() -> None:
                 conn.exec_driver_sql("ALTER TABLE campaigns ADD COLUMN seed_scenarios TEXT NOT NULL DEFAULT '[]'")
             if cols and "summary_json" not in cols:
                 conn.exec_driver_sql("ALTER TABLE campaigns ADD COLUMN summary_json TEXT NOT NULL DEFAULT '{}'")
+
+            runs_cols = [c[1] for c in conn.exec_driver_sql("PRAGMA table_info(runs)").fetchall()]
+            if runs_cols and "backend" not in runs_cols:
+                conn.exec_driver_sql("ALTER TABLE runs ADD COLUMN backend TEXT NOT NULL DEFAULT 'scripted'")
+
+            trials_cols = [c[1] for c in conn.exec_driver_sql("PRAGMA table_info(trials)").fetchall()]
+            if trials_cols and "backend" not in trials_cols:
+                conn.exec_driver_sql("ALTER TABLE trials ADD COLUMN backend TEXT NOT NULL DEFAULT 'scripted'")
+            if trials_cols and "model_replies_json" not in trials_cols:
+                conn.exec_driver_sql("ALTER TABLE trials ADD COLUMN model_replies_json TEXT NULL")
+
             conn.commit()
     except Exception:
         pass

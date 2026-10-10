@@ -66,6 +66,9 @@ class ScenarioDetailResponse(BaseModel):
 class RunCreateRequest(BaseModel):
     task_id: str
     defense: str = Field(default="none")
+    backend: str = Field(default="scripted")
+    n_runs: Optional[int] = Field(default=None)
+    backend_config: dict[str, Any] = Field(default_factory=dict)
 
 
 class TrialSummary(BaseModel):
@@ -73,6 +76,7 @@ class TrialSummary(BaseModel):
     status: str
     event_count: int
     verdict: Optional[str] = None
+    backend: str = "scripted"
 
 
 class RunResponse(BaseModel):
@@ -80,6 +84,9 @@ class RunResponse(BaseModel):
     task_id: str
     defense: str
     status: str
+    backend: str = "scripted"
+    summary: Optional[str] = None
+    fallback_notice: Optional[str] = None
     trials: list[TrialSummary] = Field(default_factory=list)
 
 
