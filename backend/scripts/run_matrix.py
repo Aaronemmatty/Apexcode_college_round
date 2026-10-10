@@ -9,12 +9,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import sessionmaker
 from app.db.models import Base
-from app.db.session import engine, SessionLocal
+from app.db.session import engine, SessionLocal, init_db
 from app.agent.tasks import list_tasks
 from app.orchestrator import execute_run
 
 def main():
-    Base.metadata.create_all(bind=engine)
+    init_db()
     db = SessionLocal()
 
     tasks = list_tasks()
