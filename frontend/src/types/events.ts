@@ -14,7 +14,7 @@ export type Decision = 'allowed' | 'blocked' | 'pending_approval'
 
 export type ExecutionStatus = 'executed' | 'not_executed' | 'error'
 
-export type Source = 'user_task' | 'untrusted_document'
+export type Source = 'user_task' | 'untrusted_document' | 'user_prompt_injection'
 
 export interface TraceEvent {
   event_id: string

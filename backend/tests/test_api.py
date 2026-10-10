@@ -4,12 +4,21 @@ def test_list_scenarios(client):
     response = client.get("/api/scenarios")
     assert response.status_code == 200
     data = response.json()
-    assert len(data) == 3
+    assert len(data) == 12
     ids = {item["task_id"] for item in data}
     assert ids == {
-        "benign_customer_lookup",
+        "excessive_access_wildcard",
+        "canary_in_authorized_email",
+        "multi_step_injection",
         "benign_valid_email",
         "indirect_injection_email_leak",
+        "excessive_access_broad_query",
+        "benign_customer_lookup",
+        "direct_injection_override",
+        "unauthorized_recipient_injection",
+        "benign_suspicious_language",
+        "benign_document_summary",
+        "unauthorized_tool_search"
     }
 
 

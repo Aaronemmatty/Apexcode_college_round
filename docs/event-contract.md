@@ -1,4 +1,4 @@
-﻿# Event Contract
+# Event Contract
 
 The AgentBreak trace format records every input, tool invocation, execution result, security decision, and output emitted during a trial.
 
@@ -46,6 +46,7 @@ For blocked requests, the request is intercepted before tool dispatch:
 ### Source
 - `user_task`: Tool action originates from the legitimate user plan.
 - `untrusted_document`: Tool action was triggered by instructions found inside an untrusted document.
+- `user_prompt_injection`: Tool action originates from adversarial instruction arriving through the user's own message.
 
 ---
 

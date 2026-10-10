@@ -29,22 +29,30 @@ class ScenarioSummaryResponse(BaseModel):
     task_id: str
     title: str
     kind: Literal["benign", "attack"]
+    category: str
+    description: str
     user_prompt: str
 
 
 class TaskPlanStepSchema(BaseModel):
     tool: str
     arguments: dict[str, Any] = Field(default_factory=dict)
+    source: str = "user_task"
 
 
 class ScenarioDetailResponse(BaseModel):
     task_id: str
     title: str
     kind: Literal["benign", "attack"]
+    category: str
+    description: str
     user_prompt: str
     permitted_tools: list[str] = Field(default_factory=list)
     permitted_recipients: list[str] = Field(default_factory=list)
     plan: list[TaskPlanStepSchema] = Field(default_factory=list)
+    documents: dict[str, Any] = Field(default_factory=dict)
+    max_customer_records: int | None = None
+    expected: dict | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -100,3 +108,23 @@ class EvaluationResponse(BaseModel):
     task_completed: bool = False
     false_blocks: int = 0
     notes: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Replays
+# ---------------------------------------------------------------------------
+
+class ReplayReport(BaseModel):
+    differences: list[str] = Field(default_factory=list)
+    original_event_count: int
+    replay_event_count: int
+    original_verdict: str
+    replay_verdict: str
+
+
+class ReplayResponse(BaseModel):
+    replay_id: str
+    original_trial_id: str
+    consistent: bool
+    report: ReplayReport
+    created_at: str

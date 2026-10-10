@@ -19,11 +19,14 @@ TOOL_NAMES: list[str] = [
 class ToolEnvironment:
     """Isolated, stateful mock sandbox environment instantiated per trial."""
 
-    def __init__(self) -> None:
+    def __init__(self, documents_overlay: dict[str, dict[str, str]] | None = None) -> None:
         self.customers: list[dict[str, Any]] = [dict(c) for c in CUSTOMERS]
         self.documents: dict[str, dict[str, str]] = {
             k: dict(v) for k, v in DOCUMENTS.items()
         }
+        if documents_overlay:
+            for k, v in documents_overlay.items():
+                self.documents[k] = dict(v)
         self.outbox: list[dict[str, Any]] = []
 
     def search_customers(self, query: str = "*") -> dict[str, Any]:

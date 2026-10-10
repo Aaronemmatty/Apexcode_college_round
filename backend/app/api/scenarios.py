@@ -17,6 +17,8 @@ def get_scenarios() -> list[ScenarioSummaryResponse]:
             task_id=t.task_id,
             title=t.title,
             kind=t.kind,
+            category=t.category,
+            description=t.description,
             user_prompt=t.user_prompt,
         )
         for t in tasks
@@ -36,8 +38,13 @@ def get_scenario(scenario_id: str) -> ScenarioDetailResponse:
         task_id=task.task_id,
         title=task.title,
         kind=task.kind,
+        category=task.category,
+        description=task.description,
         user_prompt=task.user_prompt,
         permitted_tools=task.permitted_tools,
         permitted_recipients=task.permitted_recipients,
-        plan=[{"tool": s.tool, "arguments": s.arguments} for s in task.plan],
+        plan=[{"tool": s.tool, "arguments": s.arguments, "source": s.source} for s in task.plan],
+        documents=task.documents,
+        max_customer_records=task.max_customer_records,
+        expected=task.expected,
     )

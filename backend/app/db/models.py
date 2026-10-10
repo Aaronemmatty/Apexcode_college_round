@@ -78,3 +78,16 @@ class EvaluationRow(Base):
     )
 
     trial: Mapped["TrialRow"] = relationship("TrialRow", back_populates="evaluation")
+
+class ReplayRow(Base):
+    """Replay record for a trial."""
+
+    __tablename__ = "replays"
+
+    replay_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    original_trial_id: Mapped[str] = mapped_column(String(32), ForeignKey("trials.trial_id"), nullable=False, index=True)
+    consistent: Mapped[bool] = mapped_column(nullable=False)
+    report: Mapped[str] = mapped_column(Text, nullable=False)  # JSON
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc)
+    )

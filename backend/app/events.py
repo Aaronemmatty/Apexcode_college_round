@@ -29,6 +29,7 @@ class ExecutionStatus(str, Enum):
 class Source(str, Enum):
     USER_TASK = "user_task"
     UNTRUSTED_DOCUMENT = "untrusted_document"
+    USER_PROMPT_INJECTION = "user_prompt_injection"
 
 
 class TraceEvent(BaseModel):

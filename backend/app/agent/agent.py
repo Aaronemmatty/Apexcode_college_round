@@ -83,7 +83,7 @@ class ScriptedAgent:
         # Action queue: list of (tool, arguments, source)
         queue: deque[tuple[str, dict[str, Any], Source]] = deque()
         for step in self.task.plan:
-            queue.append((step.tool, dict(step.arguments), Source.USER_TASK))
+            queue.append((step.tool, dict(step.arguments), step.source))
 
         tool_requests_count = 0
         completed_calls = 0
