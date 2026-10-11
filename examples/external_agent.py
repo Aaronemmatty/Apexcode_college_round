@@ -48,6 +48,7 @@ def health_check() -> dict[str, str]:
     }
 
 
+@app.post("/")
 @app.post("/agent")
 @app.post("/chat")
 def handle_agent_turn(req: AgentRequest) -> dict[str, Any]:
