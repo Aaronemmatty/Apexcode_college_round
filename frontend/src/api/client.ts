@@ -220,3 +220,15 @@ export const downloadCampaignReport = async (campaignId: string): Promise<void> 
   a.click();
   document.body.removeChild(a);
 };
+
+export interface PingAgentResponse {
+  reachable: boolean;
+  status_code?: number | null;
+  message: string;
+}
+
+export const pingAgent = (url: string) =>
+  fetchApi<PingAgentResponse>('/api/runs/ping-agent', {
+    method: 'POST',
+    body: JSON.stringify({ url }),
+  });

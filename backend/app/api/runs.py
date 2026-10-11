@@ -83,3 +83,69 @@ def get_run(run_id: str, db: Session = Depends(get_db)) -> RunResponse:
             detail=f"Run '{run_id}' not found.",
         )
     return _to_run_response(run)
+
+
+import json
+import urllib.parse
+import urllib.request
+from typing import Optional
+from pydantic import BaseModel
+
+
+class PingAgentRequest(BaseModel):
+    url: str
+
+
+class PingAgentResponse(BaseModel):
+    reachable: bool
+    status_code: Optional[int] = None
+    message: str
+
+
+@router.post("/ping-agent", response_model=PingAgentResponse)
+def ping_agent_endpoint(req: PingAgentRequest) -> PingAgentResponse:
+    url = (req.url or "").strip().split("#")[0]
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        return PingAgentResponse(
+            reachable=False,
+            message=f"Invalid URL scheme '{parsed.scheme}'. Only http:// and https:// endpoints are allowed.",
+        )
+
+    payload = {
+        "task": "Refund order 1042 for customer C-17",
+        "tool_catalog": [],
+        "history": [],
+        "step": 1,
+    }
+    data_bytes = json.dumps(payload).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=data_bytes,
+        headers={"Content-Type": "application/json", "User-Agent": "AgentBreak-Ping/1.0"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5.0) as resp:
+            status = resp.status
+            return PingAgentResponse(
+                reachable=True,
+                status_code=status,
+                message=f"Reachable: external agent responded successfully (HTTP {status}).",
+            )
+    except urllib.error.HTTPError as he:
+        return PingAgentResponse(
+            reachable=False,
+            status_code=he.code,
+            message=f"Endpoint returned HTTP {he.code}: {he.reason}.",
+        )
+    except urllib.error.URLError as ue:
+        return PingAgentResponse(
+            reachable=False,
+            message=f"Connection failed: {ue.reason}.",
+        )
+    except Exception as exc:
+        return PingAgentResponse(
+            reachable=False,
+            message=f"Connection failed: {str(exc)}.",
+        )

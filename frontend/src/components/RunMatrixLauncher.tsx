@@ -57,22 +57,22 @@ export function RunMatrixLauncher({ onComplete }: { onComplete: () => void }) {
 
   if (running) {
     return (
-      <Card className="bg-slate-900 border-slate-800 w-full max-w-md">
+      <Card className="bg-card border-border w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-lg">Running Full Matrix</CardTitle>
+          <CardTitle className="text-base font-semibold">Running Full Matrix</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-3 text-slate-300">
-            <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-            <span className="font-mono text-sm">{progress} / 24</span>
-            <span className="text-sm truncate">{currentTask}</span>
+          <div className="flex items-center gap-3 text-foreground">
+            <Loader2 className="w-4 h-4 animate-spin text-[var(--primary)]" />
+            <span className="font-mono text-sm tabular-nums">{progress} / 24</span>
+            <span className="text-sm truncate font-mono text-muted-foreground">{currentTask}</span>
           </div>
-          <div className="w-full bg-slate-800 rounded-full h-2">
-            <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${(progress / 24) * 100}%` }} />
+          <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
+            <div className="bg-[var(--primary)] h-1.5 rounded-full transition-all" style={{ width: `${(progress / 24) * 100}%` }} />
           </div>
         </CardContent>
         <CardFooter>
-          <Button variant="destructive" onClick={() => setCanceled(true)} disabled={canceled}>
+          <Button variant="destructive" size="sm" onClick={() => setCanceled(true)} disabled={canceled}>
             {canceled ? 'Canceling...' : 'Cancel'}
           </Button>
         </CardFooter>
@@ -81,30 +81,30 @@ export function RunMatrixLauncher({ onComplete }: { onComplete: () => void }) {
   }
 
   return (
-    <Card className="bg-slate-900 border-slate-800 w-full max-w-md">
+    <Card className="bg-card border-border w-full max-w-md">
       <CardHeader>
-        <CardTitle className="text-lg">Run Full Matrix</CardTitle>
+        <CardTitle className="text-base font-semibold">Run Full Matrix</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-sm text-slate-400">
-          This will execute all 12 scenarios sequentially with both `none` and `gateway` defenses, creating 24 new trials.
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Executes all benchmark scenarios sequentially with both <code className="font-mono text-xs text-foreground bg-muted px-1 py-0.5 rounded">none</code> and <code className="font-mono text-xs text-foreground bg-muted px-1 py-0.5 rounded">gateway</code> defenses.
         </p>
         {errors.length > 0 && (
-          <div className="bg-red-950/50 border border-red-900 text-red-400 px-3 py-2 rounded-md text-xs space-y-1 max-h-32 overflow-y-auto">
-            <div className="font-semibold flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {errors.length} runs failed:</div>
+          <div className="bg-[var(--verdict-violated)]/10 border border-[var(--verdict-violated)]/30 text-[var(--verdict-violated)] px-3 py-2 rounded text-xs space-y-1 max-h-32 overflow-y-auto font-mono">
+            <div className="font-semibold flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 shrink-0" /> {errors.length} runs failed:</div>
             {errors.map((e, i) => <div key={i}>{e}</div>)}
           </div>
         )}
       </CardContent>
       <CardFooter>
         {!confirm ? (
-          <Button onClick={() => setConfirm(true)} className="w-full bg-blue-600 hover:bg-blue-700">
+          <Button onClick={() => setConfirm(true)} className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-medium">
             <PlayCircle className="w-4 h-4 mr-2" /> Start Run
           </Button>
         ) : (
           <div className="flex w-full gap-2">
             <Button variant="outline" onClick={() => setConfirm(false)} className="flex-1">Back</Button>
-            <Button onClick={startMatrix} className="flex-1 bg-red-600 hover:bg-red-700">Confirm Run</Button>
+            <Button onClick={startMatrix} variant="destructive" className="flex-1">Confirm Run</Button>
           </div>
         )}
       </CardFooter>

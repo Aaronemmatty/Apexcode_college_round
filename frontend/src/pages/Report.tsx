@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   useAsync, listRuns, getTrace, getEvaluation, listScenarios, downloadReport,
@@ -6,14 +6,14 @@ import {
 import type { Run } from '../types/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { SeverityBadge } from '@/components/ui/severity-badge';
+import { SeverityBadge } from '@/components/SeverityBadge';
+import { VerdictBadge } from '@/components/VerdictBadge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import {
-  FileText, Download, Printer, ChevronRight, AlertCircle,
-  FileCode, ShieldCheck, Filter,
+  FileText, Download, ChevronRight, AlertCircle,
+  FileCode, Filter,
 } from 'lucide-react';
-
 
 // ── Recommendation mapping ──────────────────────────────────────────────────
 const INVARIANT_RECOMMENDATIONS: Record<string, string> = {
@@ -58,7 +58,6 @@ function eventToText(evt: any): string {
 function RunReport({ run, scenarioTitle, onClose }: {
   run: Run;
   scenarioTitle?: string;
-
   onClose: () => void;
 }) {
   const trialId = run.trials?.[0]?.trial_id;
@@ -101,32 +100,16 @@ function RunReport({ run, scenarioTitle, onClose }: {
     } else {
       violated.forEach((inv) => {
         lines.push(`### ${inv.invariant_id}`);
-        (inv.evidence ?? []).forEach((ev) => {
-          lines.push(`- ${ev.detail} (events: ${ev.event_ids?.join(', ')})`);
-        });
+        lines.push(`- **Status:** VIOLATED`);
+        (inv.evidence ?? []).forEach((ev) => lines.push(`- Evidence: ${ev.detail}`));
+        lines.push(`- **Fix recommendation:** ${INVARIANT_RECOMMENDATIONS[inv.invariant_id] ?? 'Tighten agent scope.'}`);
       });
-    }
-
-    lines.push(`\n## What to Do to Fix It`);
-    if (verdict === 'held') {
-      lines.push('No violation; the defense stopped it.');
-      blockedRules.forEach((r) => {
-        if (GATEWAY_RULE_RECOMMENDATIONS[r]) lines.push(`- **${r}:** ${GATEWAY_RULE_RECOMMENDATIONS[r]}`);
-      });
-    } else {
-      violated.forEach((inv) => {
-        const rec = INVARIANT_RECOMMENDATIONS[inv.invariant_id] ?? 'Review the invariant definition and tighten agent scope.';
-        lines.push(`- **${inv.invariant_id}:** ${rec}`);
-      });
-      if (violated.length > 0 && blockedRules.length === 0) {
-        lines.push('\n> **Residual:** Not stopped by the current gateway. Add a matching rule for this invariant.');
-      }
     }
 
     return lines.join('\n');
   };
 
-  const downloadMd = () => {
+  const handleDownload = () => {
     const md = buildMarkdown();
     const blob = new Blob([md], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
@@ -137,96 +120,75 @@ function RunReport({ run, scenarioTitle, onClose }: {
     URL.revokeObjectURL(url);
   };
 
-  const verdictColor = verdict === 'violated'
-    ? 'bg-red-900/40 text-red-300 border-red-700'
-    : verdict === 'held'
-    ? 'bg-emerald-900/40 text-emerald-300 border-emerald-700'
-    : 'bg-amber-900/40 text-amber-300 border-amber-700';
-
   return (
-    <div className="space-y-6 animate-in fade-in duration-200">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <FileText className="w-5 h-5 text-rose-400" />
-          <h2 className="text-lg font-bold text-white">{scenarioTitle ?? run.task_id}</h2>
-          <Badge className={`border text-xs ${verdictColor}`}>{verdict.toUpperCase()}</Badge>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs"
-            onClick={downloadMd}
-          >
-            <Download className="w-3.5 h-3.5 mr-1.5" />
-            Download .md
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs"
-            onClick={() => window.print()}
-          >
-            <Printer className="w-3.5 h-3.5 mr-1.5" aria-label="Print or save as PDF" />
-            Print / PDF
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onClose} className="text-slate-400 text-xs">
-            ← Back
-          </Button>
-        </div>
+    <div className="space-y-6">
+      {/* Top action bar */}
+      <div className="flex items-center justify-between gap-4">
+        <Button variant="outline" size="sm" onClick={onClose} className="border-border text-foreground hover:bg-muted text-xs">
+          ← Back to all reports
+        </Button>
+        <Button variant="outline" size="sm" onClick={handleDownload} className="border-border text-foreground hover:bg-muted text-xs">
+          <Download className="w-3.5 h-3.5 mr-1.5" />
+          Export this report (MD)
+        </Button>
       </div>
 
       {/* a) Summary */}
-      <Card className="bg-slate-900 border-slate-800">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-slate-400 uppercase tracking-wider font-semibold">a) Summary</CardTitle>
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <CardTitle className="text-xl text-foreground">{scenarioTitle ?? run.task_id}</CardTitle>
+              <CardDescription className="font-mono text-xs text-muted-foreground mt-0.5">{run.task_id}</CardDescription>
+            </div>
+            <VerdictBadge verdict={verdict} />
+          </div>
         </CardHeader>
         <CardContent>
-          <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-2 text-sm">
-            {[
-              ['Scenario', scenarioTitle ?? run.task_id],
-              ['Scenario ID', run.task_id],
-              ['Defense', run.defense],
-              ['Backend', run.backend ?? 'scripted'],
-              ['Run ID', run.run_id],
-              ['Trial ID', trialId ?? 'n/a'],
-            ].map(([k, v]) => (
-              <div key={k}>
-                <dt className="text-xs text-slate-500 font-semibold uppercase">{k}</dt>
-                <dd className="text-slate-200 font-mono text-xs mt-0.5 truncate">{v}</dd>
-              </div>
-            ))}
+          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+            <div>
+              <dt className="text-muted-foreground uppercase font-semibold">Defense</dt>
+              <dd className="font-mono text-foreground font-medium mt-0.5 capitalize">{run.defense}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground uppercase font-semibold">Backend</dt>
+              <dd className="font-mono text-foreground font-medium mt-0.5">{run.backend ?? 'scripted'}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground uppercase font-semibold">Run ID</dt>
+              <dd className="font-mono text-muted-foreground mt-0.5 truncate">{run.run_id}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground uppercase font-semibold">Trial ID</dt>
+              <dd className="font-mono mt-0.5">
+                {trialId ? (
+                  <Link to={`/trials/${trialId}`} className="text-foreground hover:underline font-mono">
+                    {trialId}
+                  </Link>
+                ) : 'n/a'}
+              </dd>
+            </div>
           </dl>
         </CardContent>
       </Card>
 
       {/* b) What happened */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-slate-400 uppercase tracking-wider font-semibold">b) What happened</CardTitle>
-          <CardDescription className="text-xs text-slate-500">Numbered timeline from the trace</CardDescription>
+          <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">b) What happened</CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">Step-by-step summary of execution events</CardDescription>
         </CardHeader>
         <CardContent>
           {events.length === 0 ? (
-            <div className="text-slate-500 text-sm">No trace events recorded.</div>
+            <div className="text-muted-foreground text-sm">No trace events available.</div>
           ) : (
-            <ol className="space-y-1.5">
-              {events.map((e: any, i) => {
-                const isBlocked = e.type === 'gateway_decision' && e.decision === 'blocked';
-                const isToolCall = e.type === 'tool_call';
+            <ol className="space-y-2 text-sm">
+              {events.map((evt: any, i: number) => {
+                const isBlocked = evt.type === 'gateway_decision' && evt.decision === 'blocked';
                 return (
-                  <li
-                    key={e.event_id ?? i}
-                    className={`flex gap-3 text-sm ${isBlocked ? 'text-amber-300' : isToolCall ? 'text-blue-300' : 'text-slate-300'}`}
-                  >
-                    <span className="text-slate-600 font-mono text-xs shrink-0 w-5 text-right">{i + 1}.</span>
-                    <span>{eventToText(e)}</span>
-                    {e.event_id && (
-                      <Link to={`/trials/${trialId}#${e.event_id}`} className="text-slate-600 hover:text-blue-400 text-xs shrink-0 font-mono">
-                        #{e.event_id}
-                      </Link>
-                    )}
+                  <li key={i} className={`flex items-start gap-3 p-2 rounded text-xs ${isBlocked ? 'bg-[var(--verdict-held)]/10 border border-[var(--verdict-held)]/30' : 'bg-muted/40'}`}>
+                    <span className="font-mono text-muted-foreground w-5 shrink-0 text-right">{i + 1}.</span>
+                    <span className="font-mono text-foreground">{eventToText(evt)}</span>
                   </li>
                 );
               })}
@@ -236,44 +198,42 @@ function RunReport({ run, scenarioTitle, onClose }: {
       </Card>
 
       {/* c) Violations */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-slate-400 uppercase tracking-wider font-semibold">c) Violations</CardTitle>
+          <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">c) Invariant violations</CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">Checked invariants against evaluation rules</CardDescription>
         </CardHeader>
         <CardContent>
-          {verdict === 'held' && violated.length === 0 ? (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-emerald-400">
-                <ShieldCheck className="w-4 h-4" />
-                <span className="text-sm font-medium">No violation; the defense stopped it.</span>
-              </div>
+          {verdict === 'held' ? (
+            <div className="p-3 bg-[var(--verdict-held)]/10 border border-[var(--verdict-held)]/30 rounded text-sm text-[var(--verdict-held)] space-y-1">
+              <div className="font-semibold">No violations. The defense held.</div>
               {blockedRules.length > 0 && (
-                <div className="text-sm text-slate-400">
+                <div className="text-sm text-muted-foreground">
                   Blocked by rules: {blockedRules.map((r) => (
-                    <Badge key={r} variant="outline" className="border-emerald-700 text-emerald-400 text-xs mr-1">{r}</Badge>
+                    <Badge key={r} variant="outline" className="border-border text-foreground text-xs mr-1 font-mono">{r}</Badge>
                   ))}
                 </div>
               )}
             </div>
           ) : violated.length === 0 ? (
-            <div className="text-slate-500 text-sm">No violations detected.</div>
+            <div className="text-muted-foreground text-sm">No violations detected.</div>
           ) : (
             <div className="space-y-4">
               {violated.map((inv) => (
-                <div key={inv.invariant_id} className="border-l-2 border-red-600 pl-4 space-y-1">
+                <div key={inv.invariant_id} className="border-l-4 border-l-[var(--verdict-violated)] pl-4 space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-red-400 text-sm">{inv.invariant_id}</span>
+                    <span className="font-semibold text-[var(--verdict-violated)] text-sm">{inv.invariant_id}</span>
                     {blockedRules.length === 0 && (
-                      <Badge variant="outline" className="border-amber-700 text-amber-400 text-xs">Residual: not stopped by gateway</Badge>
+                      <Badge variant="outline" className="border-border text-muted-foreground text-xs font-mono">Residual: not stopped by gateway</Badge>
                     )}
                   </div>
                   {(inv.evidence ?? []).map((ev, ei) => (
-                    <div key={ei} className="text-xs text-slate-400">
+                    <div key={ei} className="text-xs text-muted-foreground">
                       {ev.detail}
                       {ev.event_ids?.length > 0 && (
-                        <span className="ml-2 text-slate-600">
+                        <span className="ml-2 text-muted-foreground">
                           (events: {ev.event_ids.map((id) => (
-                            <Link key={id} to={`/trials/${trialId}#${id}`} className="text-blue-400 hover:underline mr-1">#{id}</Link>
+                            <Link key={id} to={`/trials/${trialId}#${id}`} className="text-foreground hover:underline mr-1 font-mono">#{id}</Link>
                           ))})
                         </span>
                       )}
@@ -287,18 +247,18 @@ function RunReport({ run, scenarioTitle, onClose }: {
       </Card>
 
       {/* d) What to do */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-slate-400 uppercase tracking-wider font-semibold">d) What to do to fix it</CardTitle>
-          <CardDescription className="text-xs text-slate-500">Rule-based recommendations — no LLM</CardDescription>
+          <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">d) What to do to fix it</CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">Rule-based recommendations — deterministic</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {verdict === 'held' ? (
             <div className="space-y-2">
-              <p className="text-sm text-emerald-400">No violation; the defense stopped it.</p>
+              <p className="text-sm text-[var(--verdict-held)]">No violation; the defense stopped it.</p>
               {blockedRules.map((r) => (
-                <div key={r} className="text-sm text-slate-400">
-                  <span className="font-mono text-emerald-300 mr-2">{r}:</span>
+                <div key={r} className="text-sm text-muted-foreground">
+                  <span className="font-mono text-foreground mr-2 font-semibold">{r}:</span>
                   {GATEWAY_RULE_RECOMMENDATIONS[r] ?? 'Rule is active; verify coverage for all variants.'}
                 </div>
               ))}
@@ -307,12 +267,12 @@ function RunReport({ run, scenarioTitle, onClose }: {
             <div className="space-y-2">
               {violated.map((inv) => (
                 <div key={inv.invariant_id} className="text-sm">
-                  <span className="font-semibold text-rose-300 mr-2">{inv.invariant_id}:</span>
-                  <span className="text-slate-300">{INVARIANT_RECOMMENDATIONS[inv.invariant_id] ?? 'Review the invariant definition and tighten agent scope.'}</span>
+                  <span className="font-semibold text-foreground mr-2">{inv.invariant_id}:</span>
+                  <span className="text-muted-foreground">{INVARIANT_RECOMMENDATIONS[inv.invariant_id] ?? 'Review the invariant definition and tighten agent scope.'}</span>
                 </div>
               ))}
               {violated.length > 0 && blockedRules.length === 0 && (
-                <div className="mt-3 p-3 border border-amber-800/50 rounded bg-amber-950/20 text-xs text-amber-300">
+                <div className="mt-3 p-3 border border-border rounded bg-muted/60 text-xs text-foreground">
                   <strong>Residual:</strong> not stopped by the current gateway. Add a gateway rule matching this invariant type.
                 </div>
               )}
@@ -322,28 +282,21 @@ function RunReport({ run, scenarioTitle, onClose }: {
       </Card>
 
       {/* e) Replay */}
-      <Card className="bg-slate-900 border-slate-800">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm text-slate-400 uppercase tracking-wider font-semibold">e) Replay</CardTitle>
+          <CardTitle className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">e) Replay</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-slate-400">
+          <p className="text-sm text-muted-foreground">
             Replay consistency depends on whether a scripted or live-LLM backend was used.
             {trialId && (
-              <> View the full trace at <Link to={`/trials/${trialId}`} className="text-blue-400 hover:underline ml-1">Trial {trialId}</Link>.</>
+              <> View the full trace at <Link to={`/trials/${trialId}`} className="text-foreground hover:underline ml-1 font-mono">Trial {trialId}</Link>.</>
             )}
           </p>
         </CardContent>
       </Card>
     </div>
   );
-}
-
-// ── Main Reports page ────────────────────────────────────────────────────────
-function verdictBadge(verdict: string) {
-  if (verdict === 'held') return 'bg-emerald-900/50 text-emerald-300 border-emerald-700';
-  if (verdict === 'violated') return 'bg-red-900/50 text-red-300 border-red-700';
-  return 'bg-amber-900/50 text-amber-300 border-amber-700';
 }
 
 export default function Report() {
@@ -363,7 +316,7 @@ export default function Report() {
   );
 
   // If preselected trial from query param, open that run on load
-  useMemo(() => {
+  useEffect(() => {
     if (preselectedTrial && runs && !selectedRun) {
       const run = runs.find((r) => r.trials?.some((t) => t.trial_id === preselectedTrial));
       if (run) setSelectedRun(run);
@@ -383,11 +336,11 @@ export default function Report() {
 
   if (error) {
     return (
-      <Card className="bg-red-950/20 border-red-900/50 max-w-xl mx-auto mt-8">
+      <Card className="bg-[var(--destructive)]/10 border-[var(--destructive)]/30 max-w-xl mx-auto mt-8">
         <CardContent className="pt-6 flex flex-col items-center space-y-4">
-          <AlertCircle className="w-12 h-12 text-red-500" />
-          <p className="text-red-400 font-medium">{error.message}</p>
-          <Button onClick={reload} variant="outline">Retry</Button>
+          <AlertCircle className="w-12 h-12 text-[var(--destructive)]" />
+          <p className="text-[var(--destructive)] font-medium">{error.message}</p>
+          <Button onClick={reload} variant="outline" className="border-border text-foreground hover:bg-muted">Retry</Button>
         </CardContent>
       </Card>
     );
@@ -396,9 +349,9 @@ export default function Report() {
   if (selectedRun) {
     const sc = scenarioMap.get(selectedRun.task_id);
     return (
-      <div className="space-y-6 animate-in fade-in duration-300 min-w-0">
+      <div className="space-y-6 min-w-0">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">Reports</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Reports</h1>
         </div>
         <RunReport
           run={selectedRun}
@@ -410,21 +363,21 @@ export default function Report() {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300 min-w-0">
+    <div className="space-y-6 min-w-0">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <FileText className="w-5 h-5 text-rose-400" />
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">Reports</h1>
+            <FileText className="w-5 h-5 text-muted-foreground" />
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Reports</h1>
           </div>
-          <p className="text-sm text-slate-400">Per-run security findings. Click a run to expand its full report.</p>
+          <p className="text-sm text-muted-foreground">Per-run security findings. Click a run to expand its full report.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => downloadReport('json')} className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs">
-            <FileCode className="w-3.5 h-3.5 mr-1.5 text-amber-400" />
+          <Button variant="outline" size="sm" onClick={() => downloadReport('json')} className="border-border text-foreground hover:bg-muted text-xs">
+            <FileCode className="w-3.5 h-3.5 mr-1.5" />
             Export all (JSON)
           </Button>
-          <Button variant="outline" size="sm" onClick={() => downloadReport('md')} className="border-slate-700 text-slate-300 hover:bg-slate-800 text-xs">
+          <Button variant="outline" size="sm" onClick={() => downloadReport('md')} className="border-border text-foreground hover:bg-muted text-xs">
             <Download className="w-3.5 h-3.5 mr-1.5" />
             Export all (Markdown)
           </Button>
@@ -433,11 +386,11 @@ export default function Report() {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
-        <Filter className="w-4 h-4 text-slate-500" />
+        <Filter className="w-4 h-4 text-muted-foreground" />
         <select
           value={filterVerdict}
           onChange={(e) => setFilterVerdict(e.target.value)}
-          className="bg-slate-900 border border-slate-700 rounded-md px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="bg-card border border-border rounded-md px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border"
         >
           <option value="all">All Verdicts</option>
           <option value="violated">Violated</option>
@@ -447,36 +400,36 @@ export default function Report() {
         <select
           value={filterDefense}
           onChange={(e) => setFilterDefense(e.target.value)}
-          className="bg-slate-900 border border-slate-700 rounded-md px-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="bg-card border border-border rounded-md px-3 py-1.5 text-sm text-foreground focus:outline-none focus:border-border"
         >
           <option value="all">All Defenses</option>
           <option value="none">None</option>
           <option value="gateway">Gateway</option>
           <option value="both">Both</option>
         </select>
-        <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
+        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
           <input
             type="checkbox"
             checked={showViolationsOnly}
             onChange={(e) => setShowViolationsOnly(e.target.checked)}
-            className="accent-rose-500"
+            className="accent-primary"
           />
           Violations only
         </label>
         {filteredRuns.length !== (runs?.length ?? 0) && (
-          <span className="text-xs text-slate-500">{filteredRuns.length} / {runs?.length ?? 0} runs</span>
+          <span className="text-xs text-muted-foreground font-mono">{filteredRuns.length} / {runs?.length ?? 0} runs</span>
         )}
       </div>
 
       {/* Run list */}
       {loading ? (
         <div className="space-y-3">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 bg-slate-800 rounded-lg" />)}
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 bg-muted/60 rounded-lg" />)}
         </div>
       ) : !runs || filteredRuns.length === 0 ? (
-        <div className="text-center py-16 text-slate-500 border border-dashed border-slate-800 rounded-lg">
+        <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-lg bg-card/40">
           <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p>{runs && runs.length > 0 ? 'No runs match your filters.' : 'No runs yet. Execute scenarios to generate reports.'}</p>
+          <p className="text-sm">{runs && runs.length > 0 ? 'No runs match your filters.' : 'No runs yet. Execute scenarios to generate reports.'}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -488,31 +441,31 @@ export default function Report() {
               <button
                 key={run.run_id}
                 onClick={() => setSelectedRun(run)}
-                className={`w-full text-left border rounded-lg p-4 transition-all hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                className={`w-full text-left border rounded-lg p-4 transition-all focus:outline-none ${
                   isViolated
-                    ? 'bg-red-950/10 border-red-900/40 hover:bg-red-950/20'
-                    : 'bg-slate-900 border-slate-800 hover:bg-slate-800/50'
+                    ? 'border-border border-l-4 border-l-[var(--verdict-violated)] bg-card hover:bg-muted/40'
+                    : 'border-border bg-card hover:bg-muted/40'
                 }`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="font-medium text-slate-200 text-sm">{sc?.title ?? run.task_id}</span>
+                      <span className="font-medium text-foreground text-sm">{sc?.title ?? run.task_id}</span>
                       {sc?.group && (
-                        <Badge variant="secondary" className="text-[10px] bg-slate-800 text-slate-400">{sc.group}</Badge>
+                        <Badge variant="outline" className="text-xs border-border text-muted-foreground font-mono">{sc.group}</Badge>
                       )}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xs text-slate-500">{run.run_id}</span>
-                      <span className="text-slate-700">·</span>
-                      <Badge variant="outline" className="text-xs border-slate-700 text-slate-400 capitalize">{run.defense}</Badge>
-                      <Badge variant="outline" className="text-xs border-slate-700 text-slate-500">{run.backend ?? 'scripted'}</Badge>
+                      <span className="font-mono text-xs text-muted-foreground">{run.run_id}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <Badge variant="outline" className="text-xs border-border text-muted-foreground capitalize font-mono">{run.defense}</Badge>
+                      <Badge variant="outline" className="text-xs border-border text-muted-foreground font-mono">{run.backend ?? 'scripted'}</Badge>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <SeverityBadge severity={sc?.severity} />
-                    <Badge className={`border text-xs ${verdictBadge(verdict)}`}>{verdict.toUpperCase()}</Badge>
-                    <ChevronRight className="w-4 h-4 text-slate-600" />
+                    <VerdictBadge verdict={verdict} size="sm" />
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   </div>
                 </div>
               </button>

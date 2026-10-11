@@ -90,7 +90,7 @@ def create_replay(trial_id: str, db: Session = Depends(get_db)) -> ReplayRespons
 
     backend = getattr(trial, "backend", getattr(run, "backend", "scripted"))
     saved_replies = None
-    if backend == "ollama" and getattr(trial, "model_replies_json", None):
+    if backend in ("ollama", "http_agent", "http", "external", "connector") and getattr(trial, "model_replies_json", None):
         try:
             saved_replies = json.loads(trial.model_replies_json)
         except Exception:

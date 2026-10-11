@@ -77,13 +77,25 @@ def simulate_trial(
             saved_replies=saved_replies,
             prompt_hardening=is_hardening,
         )
-    elif backend == "http_agent":
+    elif backend in ("http_agent", "http", "external", "connector"):
         from app.agent.adapter import HttpAgentAdapter
         cfg = backend_config or {}
-        agent = HttpAgentAdapter(
-            endpoint_url=cfg.get("url", "http://localhost:9000/chat"),
-            timeout=cfg.get("timeout", 15.0),
+        http_adapter = HttpAgentAdapter(
+            endpoint_url=cfg.get("url", "http://localhost:9000/agent"),
+            timeout=cfg.get("timeout", 10.0),
+            saved_replies=saved_replies,
         )
+        http_adapter.run(task=task, executor=executor, recorder=recorder, defense=defense)
+        if getattr(http_adapter, "inconclusive", False):
+            trial_status = "inconclusive"
+            trial_error = getattr(http_adapter, "inconclusive_reason", "External agent communication error")
+        elif getattr(http_adapter, "error", None):
+            trial_status = "failed"
+            trial_error = http_adapter.error
+        else:
+            trial_status = "completed"
+            trial_error = None
+        agent = None  # HttpAgentAdapter handles its own run loop
     else:
         agent = ScriptedAgent(
             task=task,
@@ -92,19 +104,18 @@ def simulate_trial(
             prompt_hardening=is_hardening,
         )
 
-    trial_status = "completed"
-    trial_error = None
-    try:
-        if backend == "http_agent":
-            agent.run(task, executor, recorder, defense)
-        else:
+    if agent is not None:
+        trial_status = "completed"
+        trial_error = None
+        try:
             agent.run()
-        if backend == "ollama" and getattr(agent, "inconclusive", False):
-            trial_status = "inconclusive"
-            trial_error = getattr(agent, "inconclusive_reason", "Inconclusive Ollama response")
-    except Exception as exc:
-        trial_status = "failed"
-        trial_error = str(exc)
+            if backend == "ollama" and getattr(agent, "inconclusive", False):
+                trial_status = "inconclusive"
+                trial_error = getattr(agent, "inconclusive_reason", "Inconclusive Ollama response")
+        except Exception as exc:
+            trial_status = "failed"
+            trial_error = str(exc)
+
 
     env_state = {"outbox": [dict(m) for m in env.outbox]}
 
@@ -128,6 +139,8 @@ def simulate_trial(
             )
             if backend == "ollama" and getattr(agent, "inconclusive", False):
                 evaluation.verdict = Verdict.INCONCLUSIVE
+            elif backend in ("http_agent", "http", "external", "connector") and getattr(http_adapter, "inconclusive", False):
+                evaluation.verdict = Verdict.INCONCLUSIVE
     except Exception as eval_exc:
         evaluation = Evaluation(
             trial_id=trial_id,
@@ -144,6 +157,8 @@ def simulate_trial(
             model_replies = getattr(agent, "saved_replies", [])
         else:
             model_replies = getattr(agent, "recorded_replies", [])
+    elif backend in ("http_agent", "http", "external", "connector"):
+        model_replies = getattr(http_adapter, "saved_replies", [])
 
     return SimulatedTrial(
         events=recorder.events,

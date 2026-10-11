@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAsync, listScenarios, getScenario } from '../api/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { SeverityBadge } from '@/components/ui/severity-badge';
+import { SeverityBadge } from '@/components/SeverityBadge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertCircle, ChevronDown, ChevronRight, Search, Terminal } from 'lucide-react';
@@ -59,46 +59,45 @@ function AttackInfoCard({ taskId }: { taskId: string }) {
   const sim = scenario ? simulationDetails(scenario) : null;
   const rule = scenario ? gatewayRule(scenario.expected as Record<string, unknown>) : '';
 
-  // Base card info from parent (passed as prop doesn't work here, re-use detail once loaded)
   return (
-    <div className="border border-slate-800 rounded-lg bg-slate-900 overflow-hidden">
+    <div className="border border-border rounded-lg bg-card overflow-hidden">
       <button
-        className="w-full text-left px-4 py-3 flex items-center justify-between gap-3 hover:bg-slate-800/50 transition-colors"
+        className="w-full text-left px-4 py-3 flex items-center justify-between gap-3 hover:bg-muted/50 transition-colors"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-label={`Expand ${taskId}`}
       >
-        <span className="font-mono text-xs text-slate-500 truncate">{taskId}</span>
-        {open ? <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-slate-400 shrink-0" />}
+        <span className="font-mono text-xs text-muted-foreground truncate">{taskId}</span>
+        {open ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
       </button>
       {open && (
-        <div className="px-4 pb-4 border-t border-slate-800 pt-3 space-y-4">
+        <div className="px-4 pb-4 border-t border-border pt-3 space-y-4">
           {loading || !scenario ? (
             <div className="space-y-2">
-              <Skeleton className="h-4 bg-slate-800" />
-              <Skeleton className="h-4 w-3/4 bg-slate-800" />
-              <Skeleton className="h-16 bg-slate-800" />
+              <Skeleton className="h-4 bg-muted/60" />
+              <Skeleton className="h-4 w-3/4 bg-muted/60" />
+              <Skeleton className="h-16 bg-muted/60" />
             </div>
           ) : (
             <>
               <div>
-                <h4 className="text-xs font-semibold text-slate-400 uppercase mb-1">What the attacker tries</h4>
-                <p className="text-sm text-slate-300">{attackerIntent(scenario)}</p>
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-1">What the attacker tries</h4>
+                <p className="text-sm text-foreground">{attackerIntent(scenario)}</p>
               </div>
               <div>
-                <h4 className="text-xs font-semibold text-slate-400 uppercase mb-1">How it is simulated</h4>
-                <div className="text-sm text-slate-300 space-y-1">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-1">How it is simulated</h4>
+                <div className="text-sm text-foreground space-y-1">
                   {sim?.docNames !== 'None' && (
-                    <p><span className="text-slate-500">Documents injected: </span>{sim!.docNames}</p>
+                    <p><span className="text-muted-foreground">Documents injected: </span>{sim!.docNames}</p>
                   )}
-                  <p><span className="text-slate-500">Tool calls made: </span>
-                    <span className="font-mono text-xs">{sim!.toolCalls.join(', ')}</span>
+                  <p><span className="text-muted-foreground">Tool calls made: </span>
+                    <span className="font-mono text-xs text-foreground">{sim!.toolCalls.join(', ')}</span>
                   </p>
                 </div>
               </div>
               <div>
-                <h4 className="text-xs font-semibold text-slate-400 uppercase mb-1">Why it works with no defense</h4>
-                <p className="text-sm text-slate-300">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-1">Why it works with no defense</h4>
+                <p className="text-sm text-foreground">
                   {scenario.kind === 'attack'
                     ? 'The scripted agent follows injected [[ACTION …]] directives embedded in documents or prompts without verifying their source or whether the requested action is within its permitted scope.'
                     : 'This is a benign scenario — it should complete successfully and should NOT be blocked.'}
@@ -106,13 +105,13 @@ function AttackInfoCard({ taskId }: { taskId: string }) {
               </div>
               {scenario.kind === 'attack' && (
                 <div>
-                  <h4 className="text-xs font-semibold text-slate-400 uppercase mb-1">Which gateway rule stops it</h4>
-                  <p className="text-sm text-slate-300 font-mono">{rule}</p>
+                  <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-1">Which gateway rule stops it</h4>
+                  <p className="text-sm text-foreground font-mono">{rule}</p>
                 </div>
               )}
               <div className="flex items-center gap-2 pt-1">
                 <Link to={`/attack-lab?scenario=${taskId}`}>
-                  <Button size="sm" className="bg-emerald-700 hover:bg-emerald-600 text-white text-xs">
+                  <Button size="sm" variant="secondary" className="text-xs">
                     <Terminal className="w-3.5 h-3.5 mr-1.5" />
                     Run in Attack Lab
                   </Button>
@@ -126,14 +125,6 @@ function AttackInfoCard({ taskId }: { taskId: string }) {
   );
 }
 
-const GROUP_COLORS: Record<string, string> = {
-  'Direct Injection': 'border-red-700 text-red-400',
-  'Indirect Injection': 'border-amber-700 text-amber-400',
-  'Excessive Permissions': 'border-orange-700 text-orange-400',
-  'Data Leakage': 'border-rose-700 text-rose-400',
-  'Memory / Multi-step': 'border-purple-700 text-purple-400',
-};
-
 export default function AttackInfo() {
   const { data: scenarios, error, loading, reload } = useAsync(listScenarios);
   const [search, setSearch] = useState('');
@@ -142,11 +133,11 @@ export default function AttackInfo() {
 
   if (error) {
     return (
-      <Card className="bg-red-950/20 border-red-900/50 max-w-xl mx-auto">
+      <Card className="bg-[var(--destructive)]/10 border-[var(--destructive)]/30 max-w-xl mx-auto">
         <CardContent className="pt-6 flex flex-col items-center space-y-4">
-          <AlertCircle className="w-12 h-12 text-red-500" />
-          <p className="text-red-400 font-medium">{error.message}</p>
-          <Button onClick={reload} variant="outline">Retry</Button>
+          <AlertCircle className="w-12 h-12 text-[var(--destructive)]" />
+          <p className="text-[var(--destructive)] font-medium">{error.message}</p>
+          <Button onClick={reload} variant="outline" className="border-border text-foreground hover:bg-muted">Retry</Button>
         </CardContent>
       </Card>
     );
@@ -155,7 +146,7 @@ export default function AttackInfo() {
   if (loading || !scenarios) {
     return (
       <div className="space-y-3">
-        {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-12 bg-slate-800 rounded-lg" />)}
+        {[1, 2, 3, 4, 5, 6].map((i) => <Skeleton key={i} className="h-12 bg-muted/60 rounded-lg" />)}
       </div>
     );
   }
@@ -184,30 +175,30 @@ export default function AttackInfo() {
   const ungrouped = filterAttacks.filter((s) => !s.group);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-300 min-w-0">
+    <div className="space-y-6 min-w-0">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">Attack Info</h1>
-        <p className="text-sm text-slate-400 mt-1">
-          Information about each attack scenario as simulated: what the attacker tries, how it works, and what stops it.
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Attack Info</h1>
+        <p className="text-sm text-muted-foreground mt-1">
+          Detailed technical analysis of simulated attack vectors, objectives, and governing security boundaries.
         </p>
       </div>
 
       {/* Filter bar */}
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search scenarios..."
-            className="bg-slate-900 border border-slate-700 rounded-md pl-9 pr-3 py-2 text-sm text-slate-200 w-56 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="bg-card border border-border rounded-md pl-9 pr-3 py-2 text-sm text-foreground w-56 focus:outline-none focus:border-border"
           />
         </div>
         <select
           value={filterGroup}
           onChange={(e) => setFilterGroup(e.target.value)}
-          className="bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="bg-card border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-border"
         >
           <option value="all">All Groups</option>
           {allGroups.map((g) => <option key={g} value={g}>{g}</option>)}
@@ -215,38 +206,37 @@ export default function AttackInfo() {
         <select
           value={filterSeverity}
           onChange={(e) => setFilterSeverity(e.target.value)}
-          className="bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="bg-card border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-border"
         >
           <option value="all">All Severities</option>
           {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <span className="text-xs text-slate-500">{filterAttacks.length} attacks</span>
+        <span className="text-xs text-muted-foreground font-mono">{filterAttacks.length} attacks</span>
       </div>
 
       {/* Grouped attack scenarios */}
       {filterAttacks.length === 0 ? (
-        <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-lg">
+        <div className="text-center py-12 text-muted-foreground border border-dashed border-border rounded-lg bg-card/40">
           No scenarios match your filters.
         </div>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-6">
           {allGroups.map((grp) => {
             const items = groupedAttacks[grp];
             if (!items || items.length === 0) return null;
-            const colorClass = GROUP_COLORS[grp] || 'border-slate-600 text-slate-400';
             return (
               <section key={grp} aria-label={`${grp} attacks`}>
-                <div className={`flex items-center gap-2 mb-3 pb-2 border-b ${colorClass}`}>
-                  <h2 className={`text-base font-bold ${colorClass.split(' ')[1]}`}>{grp}</h2>
-                  <Badge variant="outline" className={`text-xs ${colorClass}`}>{items.length} scenarios</Badge>
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
+                  <h2 className="text-base font-bold text-foreground">{grp}</h2>
+                  <Badge variant="outline" className="text-xs border-border text-muted-foreground font-mono">{items.length} scenarios</Badge>
                 </div>
                 <div className="space-y-2">
                   {items.map((s) => (
-                    <Card key={s.task_id} className="bg-slate-950 border-slate-800 overflow-hidden">
+                    <Card key={s.task_id} className="bg-card border-border overflow-hidden">
                       <CardHeader className="pb-2 pt-3 px-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex items-center gap-2 flex-wrap min-w-0">
-                            <CardTitle className="text-sm font-semibold text-slate-200 leading-tight">{s.title}</CardTitle>
+                            <CardTitle className="text-sm font-semibold text-foreground leading-tight">{s.title}</CardTitle>
                             <SeverityBadge severity={s.severity} />
                           </div>
                         </div>
@@ -262,13 +252,13 @@ export default function AttackInfo() {
           })}
           {ungrouped.length > 0 && (
             <section aria-label="Ungrouped attacks">
-              <h2 className="text-base font-bold text-slate-400 mb-3 pb-2 border-b border-slate-700">Other</h2>
+              <h2 className="text-base font-bold text-foreground mb-3 pb-2 border-b border-border">Other</h2>
               <div className="space-y-2">
                 {ungrouped.map((s) => (
-                  <Card key={s.task_id} className="bg-slate-950 border-slate-800 overflow-hidden">
+                  <Card key={s.task_id} className="bg-card border-border overflow-hidden">
                     <CardHeader className="pb-2 pt-3 px-4">
                       <div className="flex items-center gap-2">
-                        <CardTitle className="text-sm font-semibold text-slate-200">{s.title}</CardTitle>
+                        <CardTitle className="text-sm font-semibold text-foreground">{s.title}</CardTitle>
                         <SeverityBadge severity={s.severity} />
                       </div>
                     </CardHeader>
@@ -285,10 +275,10 @@ export default function AttackInfo() {
 
       {/* Benign scenarios section */}
       {(filterGroup === 'all' && filterSeverity === 'all') && (
-        <section aria-label="Normal tasks" className="pt-4 border-t border-slate-800">
+        <section aria-label="Normal tasks" className="pt-4 border-t border-border">
           <div className="flex items-center gap-2 mb-4">
-            <h2 className="text-base font-bold text-emerald-400">Normal Tasks (should NOT be blocked)</h2>
-            <Badge variant="outline" className="text-emerald-500 border-emerald-700 text-xs">{benign.length} scenarios</Badge>
+            <h2 className="text-base font-bold text-foreground">Normal Tasks (should NOT be blocked)</h2>
+            <Badge variant="outline" className="border-border text-muted-foreground text-xs font-mono">{benign.length} scenarios</Badge>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {benign.filter((s) => {
@@ -296,15 +286,15 @@ export default function AttackInfo() {
               const q = search.toLowerCase();
               return s.title.toLowerCase().includes(q) || s.task_id.toLowerCase().includes(q);
             }).map((s) => (
-              <Card key={s.task_id} className="bg-emerald-950/10 border-emerald-900/40">
+              <Card key={s.task_id} className="bg-card border-border">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="font-semibold text-sm text-slate-200 mb-1">{s.title}</div>
-                      <div className="font-mono text-[11px] text-slate-500 mb-1.5">{s.task_id}</div>
-                      <p className="text-xs text-slate-400 line-clamp-2">{s.description}</p>
+                      <div className="font-semibold text-sm text-foreground mb-1">{s.title}</div>
+                      <div className="font-mono text-xs text-muted-foreground mb-1.5">{s.task_id}</div>
+                      <p className="text-xs text-muted-foreground line-clamp-2">{s.description}</p>
                     </div>
-                    <Badge variant="outline" className="border-emerald-700 text-emerald-400 text-xs shrink-0">benign</Badge>
+                    <Badge variant="outline" className="border-border text-muted-foreground text-xs shrink-0 font-mono">benign</Badge>
                   </div>
                 </CardContent>
               </Card>

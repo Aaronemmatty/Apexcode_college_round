@@ -1,34 +1,59 @@
 import type { Severity } from '../types/evaluation';
-import { Badge } from '@/components/ui/badge';
+import { AlertOctagon, AlertTriangle, Info, Shield } from 'lucide-react';
 
 interface SeverityBadgeProps {
   severity?: Severity | string | null;
   className?: string;
+  size?: 'sm' | 'default';
 }
 
-export function SeverityBadge({ severity, className = '' }: SeverityBadgeProps) {
+export function SeverityBadge({ severity, className = '', size = 'default' }: SeverityBadgeProps) {
   if (!severity) return null;
 
-  const sevUpper = severity.toUpperCase();
+  const sevUpper = String(severity).toUpperCase().trim();
 
-  let colorClasses = 'bg-slate-800 text-slate-300 border-slate-700';
+  let config = {
+    label: sevUpper,
+    Icon: Shield,
+    classes: 'bg-[var(--sev-low)]/10 text-[var(--sev-low)] border-[var(--sev-low)]/30',
+  };
+
   if (sevUpper === 'CRITICAL') {
-    colorClasses = 'bg-red-950/60 text-red-400 border-red-600/60';
+    config = {
+      label: 'CRITICAL',
+      Icon: AlertOctagon,
+      classes: 'bg-[var(--sev-critical)]/10 text-[var(--sev-critical)] border-[var(--sev-critical)]/30',
+    };
   } else if (sevUpper === 'HIGH') {
-    colorClasses = 'bg-orange-950/60 text-orange-400 border-orange-600/60';
+    config = {
+      label: 'HIGH',
+      Icon: AlertTriangle,
+      classes: 'bg-[var(--sev-high)]/10 text-[var(--sev-high)] border-[var(--sev-high)]/30',
+    };
   } else if (sevUpper === 'MEDIUM') {
-    colorClasses = 'bg-yellow-950/60 text-yellow-400 border-yellow-600/60';
+    config = {
+      label: 'MEDIUM',
+      Icon: Info,
+      classes: 'bg-[var(--sev-medium)]/10 text-[var(--sev-medium)] border-[var(--sev-medium)]/30',
+    };
   } else if (sevUpper === 'LOW') {
-    colorClasses = 'bg-slate-800/80 text-slate-400 border-slate-600/60';
+    config = {
+      label: 'LOW',
+      Icon: Shield,
+      classes: 'bg-[var(--sev-low)]/10 text-[var(--sev-low)] border-[var(--sev-low)]/30',
+    };
   }
 
+  const { label, Icon, classes } = config;
+  const paddingClass = size === 'sm' ? 'px-1.5 py-0.5 text-xs' : 'px-2 py-0.5 text-xs';
+
   return (
-    <Badge
-      variant="outline"
+    <span
       data-testid="severity-badge"
-      className={`font-semibold tracking-wide text-[10px] px-1.5 py-0.5 border ${colorClasses} ${className}`}
+      className={`inline-flex items-center gap-1 font-mono font-medium tracking-wider rounded-sm border uppercase ${paddingClass} ${classes} ${className}`}
     >
-      {sevUpper}
-    </Badge>
+      <Icon className="w-3 h-3 shrink-0 stroke-[2.2]" />
+      <span>{label}</span>
+    </span>
   );
 }

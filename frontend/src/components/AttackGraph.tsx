@@ -1,6 +1,5 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { VerdictBadge } from '@/components/VerdictBadge';
 import {
   AlertTriangle,
   ArrowRight,
@@ -45,25 +44,21 @@ export default function AttackGraph({
   );
 
   let entryType = 'Standard User Prompt';
-  // entry source
   let entryDetail = inputEvent?.content?.slice(0, 80) || 'Customer assistance inquiry';
   let isUntrustedEntry = false;
 
   if (untrustedDocEvent) {
     entryType = 'Poisoned Knowledge Doc';
-    // untrusted doc
     entryDetail = untrustedDocEvent.tool === 'read_document'
-      ? `Retrieved document containing [[ACTION ...]] injection`
+      ? 'Retrieved document containing [[ACTION ...]] injection'
       : 'Injected directive in support document';
     isUntrustedEntry = true;
   } else if (memoryNoteEvent) {
     entryType = 'Poisoned Memory Note';
-    // untrusted mem
     entryDetail = 'Prior turn memory note retrieved with injection';
     isUntrustedEntry = true;
   } else if (inputEvent && (inputEvent.source === 'user_prompt_injection' || (inputEvent.content && inputEvent.content.includes('[[ACTION')))) {
     entryType = 'Direct Prompt Injection';
-    // untrusted prompt
     entryDetail = 'User supplied [[ACTION ...]] override directive';
     isUntrustedEntry = true;
   }
@@ -83,8 +78,6 @@ export default function AttackGraph({
   // 4. Analyze Gateway / Defense Interception
   const gatewayEvents = events.filter((e) => e.type === 'gateway_decision');
   const blockedDecision = gatewayEvents.find((e) => e.decision === 'blocked');
-  
-  
   const isBlocked = !!blockedDecision;
   const blockingRule = blockedDecision?.rule_id || 'gateway_rule';
 
@@ -95,33 +88,33 @@ export default function AttackGraph({
   const getToolIcon = (name: string) => {
     switch (name) {
       case 'send_email':
-        return <Mail className="w-5 h-5 text-amber-400" />;
+        return <Mail className="w-4 h-4 text-muted-foreground" />;
       case 'search_customers':
-        return <Search className="w-5 h-5 text-cyan-400" />;
+        return <Search className="w-4 h-4 text-muted-foreground" />;
       case 'read_document':
-        return <FileText className="w-5 h-5 text-blue-400" />;
+        return <FileText className="w-4 h-4 text-muted-foreground" />;
       default:
-        return <Terminal className="w-5 h-5 text-purple-400" />;
+        return <Terminal className="w-4 h-4 text-muted-foreground" />;
     }
   };
 
   return (
-    <Card className="bg-slate-900/90 border-slate-800 shadow-xl overflow-hidden">
-      <CardHeader className="pb-3 border-b border-slate-800/80 bg-slate-950/40">
+    <Card className="bg-card border-border overflow-hidden shadow-none">
+      <CardHeader className="pb-3 border-b border-border bg-muted/20">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-amber-400" />
-            <CardTitle className="text-sm font-semibold tracking-wide uppercase text-slate-200">
+            <Zap className="w-4 h-4 text-[var(--primary)]" />
+            <CardTitle className="text-sm font-semibold tracking-wide uppercase text-foreground">
               Multi-Stage Attack Flow & Provenance Graph
             </CardTitle>
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-slate-400">Provenance Legend:</span>
-            <span className="inline-flex items-center gap-1 text-emerald-400 font-mono">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> Trusted
+          <div className="flex items-center gap-3 text-xs">
+            <span className="text-muted-foreground">Provenance:</span>
+            <span className="inline-flex items-center gap-1.5 text-[var(--verdict-held)] font-mono">
+              <span className="w-2 h-2 rounded-full bg-[var(--verdict-held)] inline-block" /> Trusted
             </span>
-            <span className="inline-flex items-center gap-1 text-red-400 font-mono">
-              <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Untrusted
+            <span className="inline-flex items-center gap-1.5 text-[var(--verdict-violated)] font-mono">
+              <span className="w-2 h-2 rounded-full bg-[var(--verdict-violated)] inline-block" /> Untrusted
             </span>
           </div>
         </div>
@@ -130,192 +123,166 @@ export default function AttackGraph({
         <div className="min-w-[820px] flex items-center justify-between gap-3 relative py-2">
           {/* Node 1: Entry Point */}
           <div
-            className={`flex-1 rounded-xl p-3.5 border transition-all ${
+            className={`flex-1 rounded-lg p-3.5 border transition-colors ${
               isUntrustedEntry
-                ? 'bg-red-950/20 border-red-500/60 shadow-lg shadow-red-950/30'
-                : 'bg-slate-950/80 border-slate-700/80'
+                ? 'bg-[var(--verdict-violated)]/10 border-[var(--verdict-violated)]/40'
+                : 'bg-card border-border'
             }`}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 1. Entry Vector
               </span>
-              <Badge
-                className={`text-[10px] px-1.5 py-0 ${
+              <span
+                className={`text-xs font-mono uppercase px-1.5 py-0.5 rounded border ${
                   isUntrustedEntry
-                    ? 'bg-red-900/60 text-red-300 border-red-700'
-                    : 'bg-emerald-950 text-emerald-300 border-emerald-800'
+                    ? 'bg-[var(--verdict-violated)]/10 text-[var(--verdict-violated)] border-[var(--verdict-violated)]/30'
+                    : 'bg-[var(--verdict-held)]/10 text-[var(--verdict-held)] border-[var(--verdict-held)]/30'
                 }`}
               >
                 {isUntrustedEntry ? 'Untrusted' : 'Trusted'}
-              </Badge>
+              </span>
             </div>
             <div className="flex items-center gap-2 mb-1.5">
-              <MessageSquare className={`w-4 h-4 ${isUntrustedEntry ? 'text-red-400' : 'text-emerald-400'}`} />
-              <div className="text-xs font-semibold text-slate-100">{entryType}</div>
+              <MessageSquare className={`w-4 h-4 shrink-0 ${isUntrustedEntry ? 'text-[var(--verdict-violated)]' : 'text-[var(--verdict-held)]'}`} />
+              <div className="text-xs font-semibold text-foreground">{entryType}</div>
             </div>
-            <div className="text-[11px] font-mono text-slate-400 truncate" title={entryDetail}>
+            <div className="text-xs font-mono text-muted-foreground truncate" title={entryDetail}>
               {entryDetail}
             </div>
           </div>
 
           {/* Arrow 1 -> 2 */}
-          <div className="flex flex-col items-center justify-center px-1 text-slate-500">
-            <ArrowRight className="w-5 h-5" />
+          <div className="flex flex-col items-center justify-center px-1 text-muted-foreground">
+            <ArrowRight className="w-4 h-4" />
           </div>
 
           {/* Node 2: Agent Processing */}
-          <div className="flex-1 rounded-xl p-3.5 border bg-slate-950/80 border-slate-700/80">
+          <div className="flex-1 rounded-lg p-3.5 border bg-card border-border">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 2. Agent Core
               </span>
-              <Badge className="text-[10px] px-1.5 py-0 bg-blue-950 text-blue-300 border-blue-800">
+              <span className="text-xs font-mono uppercase px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground">
                 Decision
-              </Badge>
+              </span>
             </div>
             <div className="flex items-center gap-2 mb-1.5">
-              <Cpu className="w-4 h-4 text-blue-400" />
-              <div className="text-xs font-semibold text-slate-100">{agentLabel}</div>
+              <Cpu className="w-4 h-4 text-muted-foreground shrink-0" />
+              <div className="text-xs font-semibold text-foreground">{agentLabel}</div>
             </div>
-            <div className="text-[11px] text-slate-400 truncate" title={agentDetail}>
+            <div className="text-xs text-muted-foreground truncate" title={agentDetail}>
               {agentDetail}
             </div>
           </div>
 
           {/* Arrow 2 -> 3 */}
-          <div className="flex flex-col items-center justify-center px-1 text-slate-500">
-            <ArrowRight className="w-5 h-5" />
+          <div className="flex flex-col items-center justify-center px-1 text-muted-foreground">
+            <ArrowRight className="w-4 h-4" />
           </div>
 
           {/* Node 3: Tool Execution Attempt */}
           <div
-            className={`flex-1 rounded-xl p-3.5 border transition-all ${
+            className={`flex-1 rounded-lg p-3.5 border transition-colors ${
               isViolated
-                ? 'bg-red-950/30 border-red-500 shadow-md shadow-red-950/40'
-                : 'bg-slate-950/80 border-slate-700/80'
+                ? 'bg-[var(--verdict-violated)]/10 border-[var(--verdict-violated)]/40'
+                : 'bg-card border-border'
             }`}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 3. Tool Invocation
               </span>
-              <Badge
-                className={`text-[10px] px-1.5 py-0 font-mono ${
-                  isViolated
-                    ? 'bg-red-900/60 text-red-300 border-red-700'
-                    : 'bg-amber-950 text-amber-300 border-amber-800'
-                }`}
-              >
+              <span className="text-xs font-mono px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground">
                 {toolName}
-              </Badge>
+              </span>
             </div>
             <div className="flex items-center gap-2 mb-1.5">
               {getToolIcon(toolName)}
-              <div className="text-xs font-semibold text-slate-100 font-mono truncate">{toolName}()</div>
+              <div className="text-xs font-semibold text-foreground font-mono truncate">{toolName}()</div>
             </div>
-            <div className="text-[11px] font-mono text-slate-400 truncate" title={toolArgs}>
+            <div className="text-xs font-mono text-muted-foreground truncate" title={toolArgs}>
               {toolArgs}
             </div>
           </div>
 
           {/* Arrow 3 -> 4 */}
-          <div className="flex flex-col items-center justify-center px-1 text-slate-500">
-            <ArrowRight className="w-5 h-5" />
+          <div className="flex flex-col items-center justify-center px-1 text-muted-foreground">
+            <ArrowRight className="w-4 h-4" />
           </div>
 
           {/* Node 4: Defense Gate */}
           <div
-            className={`flex-1 rounded-xl p-3.5 border transition-all ${
+            className={`flex-1 rounded-lg p-3.5 border transition-colors ${
               isBlocked
-                ? 'bg-amber-950/30 border-amber-500/80 shadow-md shadow-amber-950/30'
-                : defense === 'none'
-                ? 'bg-slate-950/60 border-slate-800'
-                : 'bg-slate-950/80 border-slate-700'
+                ? 'bg-[var(--sev-high)]/10 border-[var(--sev-high)]/40'
+                : 'bg-card border-border'
             }`}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 4. Defense Gate
               </span>
-              <Badge
-                className={`text-[10px] px-1.5 py-0 ${
-                  isBlocked
-                    ? 'bg-amber-900/60 text-amber-300 border-amber-700'
-                    : defense === 'none'
-                    ? 'bg-slate-800 text-slate-400 border-slate-700'
-                    : 'bg-blue-950 text-blue-300 border-blue-800'
-                }`}
-              >
+              <span className="text-xs font-mono uppercase px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground">
                 {defense}
-              </Badge>
+              </span>
             </div>
             <div className="flex items-center gap-2 mb-1.5">
               {isBlocked ? (
-                <ShieldAlert className="w-4 h-4 text-amber-400" />
+                <ShieldAlert className="w-4 h-4 text-[var(--sev-high)] shrink-0" />
               ) : defense === 'none' ? (
-                <Shield className="w-4 h-4 text-slate-500" />
+                <Shield className="w-4 h-4 text-muted-foreground shrink-0" />
               ) : (
-                <ShieldCheck className="w-4 h-4 text-blue-400" />
+                <ShieldCheck className="w-4 h-4 text-[var(--verdict-held)] shrink-0" />
               )}
-              <div className="text-xs font-semibold text-slate-100">
-                {isBlocked ? 'Blocked by Rule' : defense === 'none' ? 'No Gate Enforced' : 'Action Allowed'}
+              <div className="text-xs font-semibold text-foreground">
+                {isBlocked ? 'Blocked by Policy' : defense === 'none' ? 'No Gate Active' : 'Policy Allowed'}
               </div>
             </div>
-            <div className="text-[11px] font-mono text-slate-400 truncate">
+            <div className="text-xs font-mono text-muted-foreground truncate">
               {isBlocked ? blockingRule : defense === 'none' ? 'Direct execution path' : 'Within task policy'}
             </div>
           </div>
 
           {/* Arrow 4 -> 5 */}
-          <div className="flex flex-col items-center justify-center px-1 text-slate-500">
-            <ArrowRight className="w-5 h-5" />
+          <div className="flex flex-col items-center justify-center px-1 text-muted-foreground">
+            <ArrowRight className="w-4 h-4" />
           </div>
 
-          {/* Node 5: Final Outcome (Violated marked in Red) */}
+          {/* Node 5: Final Outcome */}
           <div
-            className={`flex-1 rounded-xl p-3.5 border transition-all ${
+            className={`flex-1 rounded-lg p-3.5 border transition-colors ${
               isViolated
-                ? 'bg-red-950/50 border-red-500 text-red-200 shadow-xl shadow-red-950/50 animate-pulse'
+                ? 'bg-[var(--verdict-violated)]/10 border-[var(--verdict-violated)]/40'
                 : isHeld
-                ? 'bg-emerald-950/40 border-emerald-500 text-emerald-200 shadow-lg shadow-emerald-950/30'
-                : 'bg-slate-950/80 border-slate-700 text-slate-300'
+                ? 'bg-[var(--verdict-held)]/10 border-[var(--verdict-held)]/40'
+                : 'bg-card border-border'
             }`}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                5. Security Invariant
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                5. Outcome
               </span>
-              <Badge
-                className={`text-[10px] px-1.5 py-0 font-bold ${
-                  isViolated
-                    ? 'bg-red-900 text-red-100 border-red-600'
-                    : isHeld
-                    ? 'bg-emerald-900 text-emerald-100 border-emerald-600'
-                    : 'bg-slate-800 text-slate-300'
-                }`}
-              >
-                {verdict.toUpperCase()}
-              </Badge>
+              <VerdictBadge verdict={verdict} size="sm" />
             </div>
             <div className="flex items-center gap-2 mb-1.5">
               {isViolated ? (
-                <AlertTriangle className="w-4 h-4 text-red-400" />
+                <AlertTriangle className="w-4 h-4 text-[var(--verdict-violated)] shrink-0" />
               ) : isHeld ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <CheckCircle2 className="w-4 h-4 text-[var(--verdict-held)] shrink-0" />
               ) : (
-                <Shield className="w-4 h-4 text-slate-400" />
+                <Shield className="w-4 h-4 text-muted-foreground shrink-0" />
               )}
-              <div className="text-xs font-bold">
-                {isViolated ? 'Invariant Violated!' : isHeld ? 'All Invariants Held' : 'Inconclusive'}
+              <div className="text-xs font-semibold text-foreground">
+                {isViolated ? 'Invariant Violated' : isHeld ? 'All Invariants Held' : 'Inconclusive'}
               </div>
             </div>
-            <div className="text-[11px] font-mono truncate" title={violatedInvariants.join(', ')}>
+            <div className="text-xs font-mono text-muted-foreground truncate" title={violatedInvariants.join(', ')}>
               {isViolated && violatedInvariants.length > 0
                 ? violatedInvariants.join(', ')
                 : isHeld
-                ? 'Confined to task boundary'
-                : 'Execution interrupted'}
+                ? 'Confined to boundary'
+                : 'Interrupted'}
             </div>
           </div>
         </div>
