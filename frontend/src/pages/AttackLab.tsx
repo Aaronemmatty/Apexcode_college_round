@@ -28,6 +28,7 @@ import {
   useAsync,
   getOllamaModels,
   pingAgent,
+  listRuns,
 } from '../api/client';
 import type {
   AttackLibraryItem,
@@ -139,6 +140,25 @@ export default function AttackLab() {
     setReplayResult(null);
     setReplayError(null);
 
+    const targetRuns = backend === 'ollama' ? nRuns : 1;
+    setProgress(targetRuns > 1 ? { current: 1, total: targetRuns } : null);
+
+    let pollInterval: any = null;
+    if (backend === 'ollama' && targetRuns > 1) {
+      pollInterval = setInterval(async () => {
+        try {
+          const runs = await listRuns(backend);
+          const latestCustom = runs.find((r: any) => r.task_id.startsWith('custom_') && r.status === 'running');
+          if (latestCustom && latestCustom.trials) {
+            const current = Math.min(targetRuns, Math.max(1, latestCustom.trials.length));
+            setProgress({ current, total: targetRuns });
+          }
+        } catch (e) {
+          // ignore transient poll error
+        }
+      }, 500);
+    }
+
     try {
       const payload: any = {
         attack_type: 'custom',
@@ -150,13 +170,16 @@ export default function AttackLab() {
 
       if (backend === 'http_agent') {
         payload.agent_url = agentUrl;
+        payload.backend_config = { endpoint_url: agentUrl };
       } else if (backend === 'ollama') {
         payload.ollama_model = ollamaModel;
+        payload.backend_config = { model: ollamaModel };
         payload.n_runs = nRuns;
       }
 
       if (selectedScenarioId) {
         payload.scenario_id = selectedScenarioId;
+        payload.base_scenario_id = selectedScenarioId;
       }
 
       if (advancedPerms) {
@@ -190,6 +213,7 @@ export default function AttackLab() {
       setError(errMsg);
       showToast(errMsg, 'error');
     } finally {
+      if (pollInterval) clearInterval(pollInterval);
       setRunning(false);
       setProgress(null);
     }
