@@ -3,19 +3,13 @@ import { Link } from 'react-router-dom';
 import { useAsync, listRuns, listScenarios } from '../api/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { SeverityBadge } from '@/components/ui/severity-badge';
+import { SeverityBadge } from '@/components/SeverityBadge';
+import { VerdictBadge } from '@/components/VerdictBadge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, ExternalLink, FileText, Search, ChevronDown } from 'lucide-react';
 
 const PAGE_SIZE = 25;
-
-function verdictClass(verdict: string) {
-  if (verdict === 'held') return 'bg-emerald-900/50 text-emerald-300 border-emerald-700';
-  if (verdict === 'violated') return 'bg-red-900/50 text-red-300 border-red-700';
-  if (verdict === 'inconclusive') return 'bg-amber-900/50 text-amber-300 border-amber-700';
-  return 'bg-slate-800 text-slate-300 border-slate-700';
-}
 
 export default function History() {
   const { data: runs, loading: runsLoading, error: runsError, reload } = useAsync(listRuns);
@@ -56,39 +50,39 @@ export default function History() {
 
   if (runsError) {
     return (
-      <Card className="bg-red-950/20 border-red-900/50 max-w-xl mx-auto mt-8">
+      <Card className="bg-[var(--destructive)]/10 border-[var(--destructive)]/30 max-w-xl mx-auto mt-8">
         <CardContent className="pt-6 flex flex-col items-center space-y-4">
-          <AlertCircle className="w-12 h-12 text-red-500" />
-          <p className="text-red-400 font-medium">{runsError.message}</p>
-          <Button onClick={reload} variant="outline">Retry</Button>
+          <AlertCircle className="w-12 h-12 text-[var(--destructive)]" />
+          <p className="text-[var(--destructive)] font-medium">{runsError.message}</p>
+          <Button onClick={reload} variant="outline" className="border-border text-foreground hover:bg-muted">Retry</Button>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300 min-w-0">
+    <div className="space-y-6 min-w-0">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">Run History</h1>
-        <p className="text-sm text-slate-400 mt-1">All benchmark runs, newest first. {filtered.length > 0 && `${filtered.length} runs matching filters.`}</p>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Run History</h1>
+        <p className="text-sm text-muted-foreground mt-1">All benchmark runs, newest first. {filtered.length > 0 && `${filtered.length} runs matching filters.`}</p>
       </div>
 
       {/* Filter bar */}
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="Search run ID or scenario..."
-            className="bg-slate-900 border border-slate-700 rounded-md pl-9 pr-3 py-2 text-sm text-slate-200 w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="bg-card border border-border rounded-md pl-9 pr-3 py-2 text-sm text-foreground w-64 focus:outline-none focus:border-border font-mono"
           />
         </div>
         <select
           value={filterVerdict}
           onChange={(e) => { setFilterVerdict(e.target.value); setPage(1); }}
-          className="bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="bg-card border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-border"
         >
           <option value="all">All Verdicts</option>
           <option value="violated">Violated</option>
@@ -98,7 +92,7 @@ export default function History() {
         <select
           value={filterDefense}
           onChange={(e) => { setFilterDefense(e.target.value); setPage(1); }}
-          className="bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="bg-card border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-border"
         >
           <option value="all">All Defenses</option>
           <option value="none">None</option>
@@ -109,7 +103,7 @@ export default function History() {
         <select
           value={filterBackend}
           onChange={(e) => { setFilterBackend(e.target.value); setPage(1); }}
-          className="bg-slate-900 border border-slate-700 rounded-md px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="bg-card border border-border rounded-md px-3 py-2 text-sm text-foreground focus:outline-none focus:border-border"
         >
           <option value="all">All Backends</option>
           <option value="scripted">Scripted</option>
@@ -121,31 +115,31 @@ export default function History() {
       {/* Table */}
       {runsLoading ? (
         <div className="space-y-2">
-          {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 bg-slate-800 rounded-md" />)}
+          {[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-12 bg-muted/60 rounded-md" />)}
         </div>
       ) : !runs || filtered.length === 0 ? (
-        <div className="text-center py-16 text-slate-500 border border-dashed border-slate-800 rounded-lg bg-slate-900/30">
+        <div className="text-center py-16 text-muted-foreground border border-dashed border-border rounded-lg bg-card/40">
           <FileText className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="font-medium">{runs && runs.length > 0 ? 'No runs match your filters.' : 'No runs yet. Execute scenarios to populate run history.'}</p>
+          <p className="font-medium text-sm">{runs && runs.length > 0 ? 'No runs match your filters.' : 'No runs yet. Execute scenarios to populate run history.'}</p>
         </div>
       ) : (
         <>
-          <div className="rounded-md border border-slate-800 bg-slate-900 overflow-x-auto min-w-0">
+          <div className="rounded-lg border border-border bg-card overflow-x-auto min-w-0">
             <table className="w-full text-sm">
-              <thead className="border-b border-slate-800 sticky top-0 bg-slate-900 z-10">
-                <tr className="text-left">
-                  <th className="px-4 py-3 text-slate-400 font-semibold text-xs uppercase tracking-wide">Run ID</th>
-                  <th className="px-4 py-3 text-slate-400 font-semibold text-xs uppercase tracking-wide">Scenario</th>
-                  <th className="px-4 py-3 text-slate-400 font-semibold text-xs uppercase tracking-wide">Group</th>
-                  <th className="px-4 py-3 text-slate-400 font-semibold text-xs uppercase tracking-wide">Backend</th>
-                  <th className="px-4 py-3 text-slate-400 font-semibold text-xs uppercase tracking-wide">Defense</th>
-                  <th className="px-4 py-3 text-slate-400 font-semibold text-xs uppercase tracking-wide">Verdict</th>
-                  <th className="px-4 py-3 text-slate-400 font-semibold text-xs uppercase tracking-wide">Severity</th>
-                  <th className="px-4 py-3 text-slate-400 font-semibold text-xs uppercase tracking-wide">Links</th>
+              <thead className="border-b border-border sticky top-0 bg-card z-10">
+                <tr className="text-left text-xs uppercase text-muted-foreground font-semibold">
+                  <th className="px-4 py-3 tracking-wider">Run ID</th>
+                  <th className="px-4 py-3 tracking-wider">Scenario</th>
+                  <th className="px-4 py-3 tracking-wider">Group</th>
+                  <th className="px-4 py-3 tracking-wider">Backend</th>
+                  <th className="px-4 py-3 tracking-wider">Defense</th>
+                  <th className="px-4 py-3 tracking-wider">Verdict</th>
+                  <th className="px-4 py-3 tracking-wider">Severity</th>
+                  <th className="px-4 py-3 tracking-wider">Links</th>
                 </tr>
               </thead>
-              <tbody>
-                {paged.map((run, idx) => {
+              <tbody className="divide-y divide-border">
+                {paged.map((run) => {
                   const sc = scenarioMap.get(run.task_id);
                   const firstTrial = run.trials?.[0];
                   const verdict = firstTrial?.verdict ?? 'inconclusive';
@@ -153,33 +147,37 @@ export default function History() {
                   return (
                     <tr
                       key={run.run_id}
-                      className={`border-b border-slate-800 transition-colors ${isViolated ? 'bg-red-950/10 hover:bg-red-950/20' : idx % 2 === 0 ? 'hover:bg-slate-800/40' : 'bg-slate-900/50 hover:bg-slate-800/40'}`}
+                      className={`h-[52px] transition-colors ${
+                        isViolated
+                          ? 'border-l-4 border-l-[var(--verdict-violated)] bg-card hover:bg-muted/40'
+                          : 'hover:bg-muted/40'
+                      }`}
                     >
-                      <td className="px-4 py-3 font-mono text-xs text-blue-400">{run.run_id}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-foreground font-medium">{run.run_id}</td>
                       <td className="px-4 py-3">
-                        <div className="font-medium text-slate-200 truncate max-w-[180px]">{sc?.title ?? run.task_id}</div>
-                        <div className="text-xs text-slate-500 font-mono truncate max-w-[180px]">{run.task_id}</div>
+                        <div className="font-medium text-foreground truncate max-w-[200px] text-sm">{sc?.title ?? run.task_id}</div>
+                        <div className="text-xs text-muted-foreground font-mono truncate max-w-[200px]">{run.task_id}</div>
                       </td>
                       <td className="px-4 py-3">
                         {sc?.group ? (
-                          <Badge variant="secondary" className="bg-slate-800 text-slate-300 text-[10px] whitespace-nowrap">{sc.group}</Badge>
+                          <Badge variant="outline" className="border-border text-muted-foreground text-xs whitespace-nowrap font-mono">{sc.group}</Badge>
                         ) : (
-                          <span className="text-slate-600 text-xs">—</span>
+                          <span className="text-muted-foreground text-xs">—</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <Badge variant="outline" className={`text-xs ${run.backend === 'ollama' ? 'border-indigo-500 text-indigo-400' : 'border-slate-700 text-slate-400'}`}>
+                        <Badge variant="outline" className="border-border text-muted-foreground text-xs font-mono">
                           {run.backend === 'ollama' ? 'Ollama' : run.backend === 'http_agent' ? 'HTTP Agent' : 'Scripted'}
                         </Badge>
                       </td>
                       <td className="px-4 py-3">
-                        <Badge variant="outline" className="text-xs border-slate-700 text-slate-400 capitalize">{run.defense}</Badge>
+                        <Badge variant="outline" className="border-border text-muted-foreground text-xs capitalize font-mono">{run.defense}</Badge>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <Badge className={`text-xs border ${verdictClass(verdict)}`}>{verdict.toUpperCase()}</Badge>
+                          <VerdictBadge verdict={verdict} size="sm" />
                           {run.summary && (
-                            <Badge variant="outline" className="border-purple-700 text-purple-300 text-xs font-mono">{run.summary}</Badge>
+                            <Badge variant="outline" className="border-border text-muted-foreground text-xs font-mono">{run.summary}</Badge>
                           )}
                         </div>
                       </td>
@@ -189,12 +187,12 @@ export default function History() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           {firstTrial?.trial_id && (
-                            <Link to={`/trials/${firstTrial.trial_id}`} className="text-blue-400 hover:text-blue-300 transition-colors" title="View Trace">
+                            <Link to={`/trials/${firstTrial.trial_id}`} className="text-muted-foreground hover:text-foreground transition-colors" title="View Trace">
                               <ExternalLink className="w-4 h-4" aria-label="View trace" />
                             </Link>
                           )}
                           {firstTrial?.trial_id && (
-                            <Link to={`/report?trial=${firstTrial.trial_id}`} className="text-rose-400 hover:text-rose-300 transition-colors" title="View Report">
+                            <Link to={`/report?trial=${firstTrial.trial_id}`} className="text-muted-foreground hover:text-foreground transition-colors" title="View Report">
                               <FileText className="w-4 h-4" aria-label="View report" />
                             </Link>
                           )}
@@ -211,7 +209,7 @@ export default function History() {
             <div className="text-center pt-2">
               <Button
                 variant="outline"
-                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                className="border-border text-foreground hover:bg-muted"
                 onClick={() => setPage((p) => p + 1)}
               >
                 <ChevronDown className="w-4 h-4 mr-2" />
