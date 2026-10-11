@@ -352,7 +352,12 @@ class OllamaAgent(AgentBackend):
         if self.seed is not None:
             payload["options"]["seed"] = self.seed
 
-        print(f"Ollama request -> model: {payload['model']}, tools: {'enabled' if 'tools' in payload else 'disabled'}, keep_alive: {payload.get('keep_alive')}")
+        logger.debug(
+            "Ollama request -> model: %s, tools: %s, keep_alive: %s",
+            payload['model'],
+            'enabled' if 'tools' in payload else 'disabled',
+            payload.get('keep_alive')
+        )
         
         import time
         start_time = time.time()
@@ -373,7 +378,7 @@ class OllamaAgent(AgentBackend):
                 )
 
             elapsed = time.time() - start_time
-            print(f"Ollama call completed in {elapsed:.2f}s")
+            logger.debug("Ollama call completed in %.2fs", elapsed)
             if resp.status_code != 200:
                 raise RuntimeError(f"Ollama returned HTTP {resp.status_code}: {resp.text[:200]}")
             data = resp.json()
