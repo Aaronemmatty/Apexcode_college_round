@@ -111,6 +111,12 @@ def ping_agent_endpoint(req: PingAgentRequest) -> PingAgentResponse:
             reachable=False,
             message=f"Invalid URL scheme '{parsed.scheme}'. Only http:// and https:// endpoints are allowed.",
         )
+    if parsed.port == 5173:
+        return PingAgentResponse(
+            reachable=False,
+            status_code=404,
+            message="Port 5173 is the AgentBreak Web UI (React/Vite). The agent endpoint is at http://localhost:9000/agent.",
+        )
 
     payload = {
         "task": "Refund order 1042 for customer C-17",
