@@ -27,6 +27,7 @@ import {
   useAsync,
   getOllamaModels,
   listRuns,
+  pingAgent,
 } from '../api/client';
 import type {
   AttackLibraryItem,
@@ -57,8 +58,27 @@ export default function AttackLab() {
   const [ollamaModel, setOllamaModel] = useState<string>('qwen2.5:7b');
   const [nRuns, setNRuns] = useState<number>(10);
   const [progress, setProgress] = useState<{current: number, total: number} | null>(null);
-  const [agentUrl, setAgentUrl] = useState<string>('http://localhost:9000/chat');
+  const [agentUrl, setAgentUrl] = useState<string>('http://localhost:9000/agent');
   const [seed, setSeed] = useState<number>(42);
+  const [pingStatus, setPingStatus] = useState<{ loading: boolean; reachable?: boolean; message?: string } | null>(null);
+
+  const handleTestConnection = async () => {
+    setPingStatus({ loading: true });
+    try {
+      const res = await pingAgent(agentUrl);
+      setPingStatus({
+        loading: false,
+        reachable: res.reachable,
+        message: res.message,
+      });
+    } catch (err: any) {
+      setPingStatus({
+        loading: false,
+        reachable: false,
+        message: err?.message || 'Failed to ping agent endpoint.',
+      });
+    }
+  };
 
   const [advancedPerms, setAdvancedPerms] = useState<boolean>(false);
   const [permTools, setPermTools] = useState<string>('read_document');
@@ -381,24 +401,61 @@ export default function AttackLab() {
                   </label>
                   <span className="text-[10px] text-indigo-400 font-mono">examples/external_agent.py</span>
                 </div>
-                <div className="flex gap-1.5">
+                <div className="flex gap-1.5 items-center">
                   <input
+                    id="agent-url-input"
                     type="text"
                     value={agentUrl}
-                    onChange={(e) => setAgentUrl(e.target.value)}
-                    placeholder="http://localhost:9000/chat"
+                    onChange={(e) => {
+                      setAgentUrl(e.target.value);
+                      setPingStatus(null);
+                    }}
+                    placeholder="http://localhost:9000/agent"
                     className="flex-1 bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5 text-xs text-slate-200 font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                   <Button
+                    id="test-connection-button"
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setAgentUrl('http://localhost:9000/chat')}
+                    disabled={pingStatus?.loading}
+                    onClick={handleTestConnection}
+                    className="h-7 text-[10px] border-emerald-700 bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/60 px-2.5 flex items-center gap-1"
+                  >
+                    {pingStatus?.loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plug className="w-3 h-3" />}
+                    Test Connection
+                  </Button>
+                  <Button
+                    id="reset-url-button"
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setAgentUrl('http://localhost:9000/agent');
+                      setPingStatus(null);
+                    }}
                     className="h-7 text-[10px] border-indigo-800 text-indigo-300 hover:bg-indigo-950 px-2"
                   >
                     Reset
                   </Button>
                 </div>
+                {pingStatus && (
+                  <div
+                    id="ping-status-banner"
+                    className={`mt-2 text-xs rounded px-2.5 py-1.5 flex items-center gap-1.5 border ${
+                      pingStatus.reachable
+                        ? 'text-emerald-300 bg-emerald-950/70 border-emerald-800'
+                        : 'text-rose-300 bg-rose-950/70 border-rose-800'
+                    }`}
+                  >
+                    {pingStatus.reachable ? (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                    )}
+                    <span>{pingStatus.message}</span>
+                  </div>
+                )}
                 <p className="text-[10px] text-slate-400 mt-1">
                   Sends <code>{'{task, tool_catalog}'}</code> via HTTP and runs actions against synthetic sandbox.
                 </p>

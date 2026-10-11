@@ -81,11 +81,15 @@ def simulate_trial(
         from app.agent.adapter import HttpAgentAdapter
         cfg = backend_config or {}
         http_adapter = HttpAgentAdapter(
-            endpoint_url=cfg.get("url", "http://localhost:9000/chat"),
-            timeout=cfg.get("timeout", 15.0),
+            endpoint_url=cfg.get("url", "http://localhost:9000/agent"),
+            timeout=cfg.get("timeout", 10.0),
+            saved_replies=saved_replies,
         )
         http_adapter.run(task=task, executor=executor, recorder=recorder, defense=defense)
-        if getattr(http_adapter, "error", None):
+        if getattr(http_adapter, "inconclusive", False):
+            trial_status = "inconclusive"
+            trial_error = getattr(http_adapter, "inconclusive_reason", "External agent communication error")
+        elif getattr(http_adapter, "error", None):
             trial_status = "failed"
             trial_error = http_adapter.error
         else:
@@ -135,6 +139,8 @@ def simulate_trial(
             )
             if backend == "ollama" and getattr(agent, "inconclusive", False):
                 evaluation.verdict = Verdict.INCONCLUSIVE
+            elif backend in ("http_agent", "http", "external", "connector") and getattr(http_adapter, "inconclusive", False):
+                evaluation.verdict = Verdict.INCONCLUSIVE
     except Exception as eval_exc:
         evaluation = Evaluation(
             trial_id=trial_id,
@@ -151,6 +157,8 @@ def simulate_trial(
             model_replies = getattr(agent, "saved_replies", [])
         else:
             model_replies = getattr(agent, "recorded_replies", [])
+    elif backend in ("http_agent", "http", "external", "connector"):
+        model_replies = getattr(http_adapter, "saved_replies", [])
 
     return SimulatedTrial(
         events=recorder.events,
