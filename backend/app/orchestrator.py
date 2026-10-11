@@ -82,7 +82,7 @@ def simulate_trial(
         cfg = backend_config or {}
         http_adapter = HttpAgentAdapter(
             endpoint_url=cfg.get("url", "http://localhost:9000/agent"),
-            timeout=cfg.get("timeout", 10.0),
+            timeout=cfg.get("timeout", 60.0),
             saved_replies=saved_replies,
         )
         http_adapter.run(task=task, executor=executor, recorder=recorder, defense=defense)

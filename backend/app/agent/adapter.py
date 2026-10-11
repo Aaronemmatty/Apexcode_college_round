@@ -123,7 +123,7 @@ class HttpAgentAdapter(AgentAdapter):
     def __init__(
         self,
         endpoint_url: str,
-        timeout: float = 10.0,
+        timeout: float = 60.0,
         max_steps: int = 8,
         saved_replies: Optional[list[dict[str, Any]]] = None,
     ) -> None:

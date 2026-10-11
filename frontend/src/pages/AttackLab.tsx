@@ -150,6 +150,7 @@ export default function AttackLab() {
 
       if (backend === 'http_agent') {
         payload.agent_url = agentUrl;
+        payload.backend_config = { url: agentUrl };
       } else if (backend === 'ollama') {
         payload.ollama_model = ollamaModel;
         payload.n_runs = nRuns;

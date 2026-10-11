@@ -42,6 +42,7 @@ class CustomAttackRequest(BaseModel):
     title: Optional[str] = None
     backend: str = Field(default="scripted")
     n_runs: Optional[int] = Field(default=None, ge=1, le=20)
+    agent_url: Optional[str] = None
     backend_config: dict[str, Any] = Field(default_factory=dict)
     permitted_tools: Optional[list[str]] = None
     permitted_recipients: Optional[list[str]] = None
@@ -256,13 +257,17 @@ def execute_custom_attack(
     if actual_n_runs is None:
         actual_n_runs = 10 if body.backend == "ollama" else 1
 
+    backend_config = dict(body.backend_config)
+    if body.agent_url and "url" not in backend_config:
+        backend_config["url"] = body.agent_url
+
     # Run through normal pipeline with chosen defense and backend
     run_row = execute_run(
         db,
         task_id=custom_id,
         defense=body.defense,
         backend=body.backend,
-        backend_config=body.backend_config,
+        backend_config=backend_config,
         n_runs=actual_n_runs,
     )
     trial_row = run_row.trials[0]
