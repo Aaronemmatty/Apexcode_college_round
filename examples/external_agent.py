@@ -37,6 +37,17 @@ class AgentRequest(BaseModel):
     step: int = Field(default=1)
 
 
+@app.get("/")
+@app.get("/agent")
+def health_check() -> dict[str, str]:
+    return {
+        "status": "online",
+        "service": "Reference External Vulnerable Agent",
+        "endpoint": "POST /agent",
+        "description": "AgentBreak HTTP connector reference agent."
+    }
+
+
 @app.post("/agent")
 @app.post("/chat")
 def handle_agent_turn(req: AgentRequest) -> dict[str, Any]:
