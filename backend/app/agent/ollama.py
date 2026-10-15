@@ -309,7 +309,7 @@ class OllamaAgent(AgentBackend):
 
                     if actions:
                         action_str = " ".join(
-                            f"[[ACTION {tool} {' '.join(f'{k}=\"{v}\"' for k, v in args.items())}]]"
+                            f"[[ACTION {tool} " + " ".join(f'{k}="{v}"' for k, v in args.items()) + "]]"
                             for tool, args in actions
                         )
                         content_str = (

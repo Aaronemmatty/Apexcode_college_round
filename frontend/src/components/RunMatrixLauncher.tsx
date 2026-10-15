@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Loader2, AlertCircle, PlayCircle } from 'lucide-react';
+import { Loader2, AlertCircle, PlayCircle, ShieldCheck } from 'lucide-react';
 import { createRun, listScenarios } from '../api/client';
 import { useToast } from '../context/ToastContext';
 
@@ -57,23 +57,28 @@ export function RunMatrixLauncher({ onComplete }: { onComplete: () => void }) {
 
   if (running) {
     return (
-      <Card className="bg-card border-border w-full max-w-md">
+      <Card className="bg-card border-border/80 w-full max-w-md shadow-lg">
         <CardHeader>
-          <CardTitle className="text-base font-semibold">Running Full Matrix</CardTitle>
+          <CardTitle className="text-sm font-semibold uppercase tracking-wider flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            Running Full Benchmark Matrix
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-3 text-foreground">
-            <Loader2 className="w-4 h-4 animate-spin text-[var(--primary)]" />
-            <span className="font-mono text-sm tabular-nums">{progress} / 24</span>
-            <span className="text-sm truncate font-mono text-muted-foreground">{currentTask}</span>
+          <div className="flex items-center justify-between gap-3 text-foreground text-xs font-mono">
+            <span className="tabular-nums font-bold text-primary">{progress} / 46</span>
+            <span className="truncate text-muted-foreground">{currentTask}</span>
           </div>
-          <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-            <div className="bg-[var(--primary)] h-1.5 rounded-full transition-all" style={{ width: `${(progress / 24) * 100}%` }} />
+          <div className="w-full bg-muted/80 rounded-full h-2 overflow-hidden border border-border/50">
+            <div
+              className="bg-primary h-2 rounded-full transition-all duration-300 shadow-sm shadow-primary/30"
+              style={{ width: `${Math.min(100, (progress / 46) * 100)}%` }}
+            />
           </div>
         </CardContent>
-        <CardFooter>
-          <Button variant="destructive" size="sm" onClick={() => setCanceled(true)} disabled={canceled}>
-            {canceled ? 'Canceling...' : 'Cancel'}
+        <CardFooter className="pt-2">
+          <Button variant="destructive" size="sm" onClick={() => setCanceled(true)} disabled={canceled} className="w-full">
+            {canceled ? 'Canceling Matrix...' : 'Cancel Execution'}
           </Button>
         </CardFooter>
       </Card>
@@ -81,33 +86,37 @@ export function RunMatrixLauncher({ onComplete }: { onComplete: () => void }) {
   }
 
   return (
-    <Card className="bg-card border-border w-full max-w-md">
+    <Card className="bg-card border-border/80 w-full max-w-md shadow-md">
       <CardHeader>
-        <CardTitle className="text-base font-semibold">Run Full Matrix</CardTitle>
+        <CardTitle className="text-sm font-semibold uppercase tracking-wider flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-primary" />
+          Run Full Benchmark Matrix
+        </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          Executes all benchmark scenarios sequentially with both <code className="font-mono text-xs text-foreground bg-muted px-1 py-0.5 rounded">none</code> and <code className="font-mono text-xs text-foreground bg-muted px-1 py-0.5 rounded">gateway</code> defenses.
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Executes all 23 benchmark scenarios sequentially against both <code className="font-mono text-xs text-foreground bg-muted px-1.5 py-0.5 rounded border border-border/60">none</code> and <code className="font-mono text-xs text-foreground bg-muted px-1.5 py-0.5 rounded border border-border/60">gateway</code> defenses.
         </p>
         {errors.length > 0 && (
-          <div className="bg-[var(--verdict-violated)]/10 border border-[var(--verdict-violated)]/30 text-[var(--verdict-violated)] px-3 py-2 rounded text-xs space-y-1 max-h-32 overflow-y-auto font-mono">
+          <div className="bg-[var(--verdict-violated)]/10 border border-[var(--verdict-violated)]/30 text-[var(--verdict-violated)] px-3 py-2.5 rounded-lg text-xs space-y-1 max-h-32 overflow-y-auto font-mono">
             <div className="font-semibold flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5 shrink-0" /> {errors.length} runs failed:</div>
             {errors.map((e, i) => <div key={i}>{e}</div>)}
           </div>
         )}
       </CardContent>
-      <CardFooter>
+      <CardFooter className="pt-2">
         {!confirm ? (
-          <Button onClick={() => setConfirm(true)} className="w-full bg-primary text-primary-foreground hover:bg-primary/90 font-medium">
-            <PlayCircle className="w-4 h-4 mr-2" /> Start Run
+          <Button onClick={() => setConfirm(true)} className="w-full bg-primary text-primary-foreground font-semibold">
+            <PlayCircle className="w-4 h-4 mr-2" /> Start 46-Run Benchmark
           </Button>
         ) : (
-          <div className="flex w-full gap-2">
+          <div className="flex w-full gap-2.5">
             <Button variant="outline" onClick={() => setConfirm(false)} className="flex-1">Back</Button>
-            <Button onClick={startMatrix} variant="destructive" className="flex-1">Confirm Run</Button>
+            <Button onClick={startMatrix} variant="destructive" className="flex-1 font-semibold">Confirm Run</Button>
           </div>
         )}
       </CardFooter>
     </Card>
   );
 }
+

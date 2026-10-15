@@ -1,4 +1,3 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { VerdictBadge } from '@/components/VerdictBadge';
 import {
   AlertTriangle,
@@ -13,7 +12,6 @@ import {
   ShieldAlert,
   ShieldCheck,
   Terminal,
-  Zap,
 } from 'lucide-react';
 import type { TraceEvent } from '../types/events';
 
@@ -22,6 +20,16 @@ interface AttackGraphProps {
   verdict?: string;
   violatedInvariants?: string[];
   defense?: string;
+}
+
+function FlowConnector({ danger = false }: { danger?: boolean }) {
+  return (
+    <div className="flex flex-col items-center justify-center px-1 text-[#555555] shrink-0 font-mono">
+      <div className={`p-1.5 border border-[#242424] bg-[#0A0A0A] ${danger ? 'text-[#FF0055] border-[#FF0055]/50' : 'text-[#888888]'}`}>
+        <ArrowRight className="w-3.5 h-3.5" />
+      </div>
+    </div>
+  );
 }
 
 export default function AttackGraph({
@@ -88,196 +96,187 @@ export default function AttackGraph({
   const getToolIcon = (name: string) => {
     switch (name) {
       case 'send_email':
-        return <Mail className="w-4 h-4 text-muted-foreground" />;
+        return <Mail className="w-4 h-4 text-[#CCFF00]" />;
       case 'search_customers':
-        return <Search className="w-4 h-4 text-muted-foreground" />;
+        return <Search className="w-4 h-4 text-[#CCFF00]" />;
       case 'read_document':
-        return <FileText className="w-4 h-4 text-muted-foreground" />;
+        return <FileText className="w-4 h-4 text-[#CCFF00]" />;
       default:
-        return <Terminal className="w-4 h-4 text-muted-foreground" />;
+        return <Terminal className="w-4 h-4 text-[#CCFF00]" />;
     }
   };
 
   return (
-    <Card className="bg-card border-border overflow-hidden shadow-none">
-      <CardHeader className="pb-3 border-b border-border bg-muted/20">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-[var(--primary)]" />
-            <CardTitle className="text-sm font-semibold tracking-wide uppercase text-foreground">
-              Multi-Stage Attack Flow & Provenance Graph
-            </CardTitle>
-          </div>
-          <div className="flex items-center gap-3 text-xs">
-            <span className="text-muted-foreground">Provenance:</span>
-            <span className="inline-flex items-center gap-1.5 text-[var(--verdict-held)] font-mono">
-              <span className="w-2 h-2 rounded-full bg-[var(--verdict-held)] inline-block" /> Trusted
-            </span>
-            <span className="inline-flex items-center gap-1.5 text-[var(--verdict-violated)] font-mono">
-              <span className="w-2 h-2 rounded-full bg-[var(--verdict-violated)] inline-block" /> Untrusted
-            </span>
-          </div>
+    <div className="border border-[#242424] bg-[#0A0A0A] p-0 select-none">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3.5 border-b border-[#242424] bg-[#0E0E0E]">
+        <div className="flex items-center gap-2">
+          <span className="px-2 py-0.5 bg-[#CCFF00] text-black font-mono font-bold text-[10px] uppercase">
+            TRACE FLOW
+          </span>
+          <span className="text-xs font-mono font-bold uppercase text-white tracking-wider">
+            MULTI-STAGE ATTACK PROVENANCE GRAPH
+          </span>
         </div>
-      </CardHeader>
-      <CardContent className="p-4 sm:p-6 overflow-x-auto">
-        <div className="min-w-[820px] flex items-center justify-between gap-3 relative py-2">
+        <div className="flex items-center gap-3 text-xs font-mono">
+          <span className="text-[#777777]">PROVENANCE:</span>
+          <span className="inline-flex items-center gap-1.5 text-[#CCFF00] text-[11px] font-bold">
+            <span className="w-2 h-2 bg-[#CCFF00] inline-block" /> TRUSTED
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[#FF0055] text-[11px] font-bold">
+            <span className="w-2 h-2 bg-[#FF0055] inline-block" /> UNTRUSTED
+          </span>
+        </div>
+      </div>
+
+      {/* Nodes Strip */}
+      <div className="p-4 sm:p-5 overflow-x-auto bg-[#080808]">
+        <div className="min-w-[880px] flex items-stretch justify-between gap-2 relative py-1">
           {/* Node 1: Entry Point */}
           <div
-            className={`flex-1 rounded-lg p-3.5 border transition-colors ${
-              isUntrustedEntry
-                ? 'bg-[var(--verdict-violated)]/10 border-[var(--verdict-violated)]/40'
-                : 'bg-card border-border'
+            className={`flex-1 p-3.5 border border-[#242424] bg-[#0D0D0D] ${
+              isUntrustedEntry ? 'border-t-2 border-t-[#FF0055]' : 'border-t-2 border-t-[#CCFF00]'
             }`}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                1. Entry Vector
+              <span className="text-[10px] font-mono font-bold uppercase text-[#888888]">
+                [ 01 // ENTRY VECTOR ]
               </span>
               <span
-                className={`text-xs font-mono uppercase px-1.5 py-0.5 rounded border ${
-                  isUntrustedEntry
-                    ? 'bg-[var(--verdict-violated)]/10 text-[var(--verdict-violated)] border-[var(--verdict-violated)]/30'
-                    : 'bg-[var(--verdict-held)]/10 text-[var(--verdict-held)] border-[var(--verdict-held)]/30'
+                className={`text-[9px] font-mono uppercase px-1.5 py-0.5 font-bold ${
+                  isUntrustedEntry ? 'bg-[#FF0055] text-white' : 'bg-[#CCFF00] text-black'
                 }`}
               >
-                {isUntrustedEntry ? 'Untrusted' : 'Trusted'}
+                {isUntrustedEntry ? 'UNTRUSTED' : 'TRUSTED'}
               </span>
             </div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <MessageSquare className={`w-4 h-4 shrink-0 ${isUntrustedEntry ? 'text-[var(--verdict-violated)]' : 'text-[var(--verdict-held)]'}`} />
-              <div className="text-xs font-semibold text-foreground">{entryType}</div>
+            <div className="flex items-center gap-2 mb-2">
+              <MessageSquare className={`w-4 h-4 shrink-0 ${isUntrustedEntry ? 'text-[#FF0055]' : 'text-[#CCFF00]'}`} />
+              <div className="text-xs font-bold text-white uppercase truncate font-mono">{entryType}</div>
             </div>
-            <div className="text-xs font-mono text-muted-foreground truncate" title={entryDetail}>
+            <div className="text-[11px] font-mono text-[#AAAAAA] truncate bg-[#050505] p-2 border border-[#1A1A1A]" title={entryDetail}>
               {entryDetail}
             </div>
           </div>
 
-          {/* Arrow 1 -> 2 */}
-          <div className="flex flex-col items-center justify-center px-1 text-muted-foreground">
-            <ArrowRight className="w-4 h-4" />
-          </div>
+          {/* Flow Connector 1 -> 2 */}
+          <FlowConnector danger={isUntrustedEntry} />
 
           {/* Node 2: Agent Processing */}
-          <div className="flex-1 rounded-lg p-3.5 border bg-card border-border">
+          <div className="flex-1 p-3.5 border border-[#242424] border-t-2 border-t-[#00E5FF] bg-[#0D0D0D]">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                2. Agent Core
+              <span className="text-[10px] font-mono font-bold uppercase text-[#00E5FF]">
+                [ 02 // AGENT CORE ]
               </span>
-              <span className="text-xs font-mono uppercase px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground">
-                Decision
+              <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 bg-[#1A1A1A] text-[#888888] font-bold">
+                DECISION
               </span>
             </div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <Cpu className="w-4 h-4 text-muted-foreground shrink-0" />
-              <div className="text-xs font-semibold text-foreground">{agentLabel}</div>
+            <div className="flex items-center gap-2 mb-2">
+              <Cpu className="w-4 h-4 text-[#00E5FF] shrink-0" />
+              <div className="text-xs font-bold text-white uppercase font-mono">{agentLabel}</div>
             </div>
-            <div className="text-xs text-muted-foreground truncate" title={agentDetail}>
+            <div className="text-[11px] font-mono text-[#AAAAAA] truncate bg-[#050505] p-2 border border-[#1A1A1A]" title={agentDetail}>
               {agentDetail}
             </div>
           </div>
 
-          {/* Arrow 2 -> 3 */}
-          <div className="flex flex-col items-center justify-center px-1 text-muted-foreground">
-            <ArrowRight className="w-4 h-4" />
-          </div>
+          {/* Flow Connector 2 -> 3 */}
+          <FlowConnector danger={isUntrustedEntry} />
 
           {/* Node 3: Tool Execution Attempt */}
           <div
-            className={`flex-1 rounded-lg p-3.5 border transition-colors ${
-              isViolated
-                ? 'bg-[var(--verdict-violated)]/10 border-[var(--verdict-violated)]/40'
-                : 'bg-card border-border'
+            className={`flex-1 p-3.5 border border-[#242424] bg-[#0D0D0D] ${
+              isViolated ? 'border-t-2 border-t-[#FF0055]' : 'border-t-2 border-t-[#CCFF00]'
             }`}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                3. Tool Invocation
+              <span className="text-[10px] font-mono font-bold uppercase text-[#888888]">
+                [ 03 // TOOL CALL ]
               </span>
-              <span className="text-xs font-mono px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground">
+              <span className="text-[9px] font-mono px-1.5 py-0.5 bg-[#1F1F1F] text-[#CCFF00] font-bold">
                 {toolName}
               </span>
             </div>
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex items-center gap-2 mb-2">
               {getToolIcon(toolName)}
-              <div className="text-xs font-semibold text-foreground font-mono truncate">{toolName}()</div>
+              <div className="text-xs font-bold text-white font-mono truncate">{toolName}()</div>
             </div>
-            <div className="text-xs font-mono text-muted-foreground truncate" title={toolArgs}>
+            <div className="text-[11px] font-mono text-[#AAAAAA] truncate bg-[#050505] p-2 border border-[#1A1A1A]" title={toolArgs}>
               {toolArgs}
             </div>
           </div>
 
-          {/* Arrow 3 -> 4 */}
-          <div className="flex flex-col items-center justify-center px-1 text-muted-foreground">
-            <ArrowRight className="w-4 h-4" />
-          </div>
+          {/* Flow Connector 3 -> 4 */}
+          <FlowConnector danger={isBlocked} />
 
           {/* Node 4: Defense Gate */}
           <div
-            className={`flex-1 rounded-lg p-3.5 border transition-colors ${
+            className={`flex-1 p-3.5 border border-[#242424] bg-[#0D0D0D] ${
               isBlocked
-                ? 'bg-[var(--sev-high)]/10 border-[var(--sev-high)]/40'
-                : 'bg-card border-border'
+                ? 'border-t-2 border-t-[#FACC15]'
+                : defense === 'none'
+                ? 'border-t-2 border-t-[#444444]'
+                : 'border-t-2 border-t-[#CCFF00]'
             }`}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                4. Defense Gate
+              <span className="text-[10px] font-mono font-bold uppercase text-[#888888]">
+                [ 04 // DEFENSE GATE ]
               </span>
-              <span className="text-xs font-mono uppercase px-1.5 py-0.5 rounded border border-border bg-muted/40 text-muted-foreground">
+              <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 bg-[#1A1A1A] text-[#888888] font-bold">
                 {defense}
               </span>
             </div>
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex items-center gap-2 mb-2">
               {isBlocked ? (
-                <ShieldAlert className="w-4 h-4 text-[var(--sev-high)] shrink-0" />
+                <ShieldAlert className="w-4 h-4 text-[#FACC15] shrink-0" />
               ) : defense === 'none' ? (
-                <Shield className="w-4 h-4 text-muted-foreground shrink-0" />
+                <Shield className="w-4 h-4 text-[#666666] shrink-0" />
               ) : (
-                <ShieldCheck className="w-4 h-4 text-[var(--verdict-held)] shrink-0" />
+                <ShieldCheck className="w-4 h-4 text-[#CCFF00] shrink-0" />
               )}
-              <div className="text-xs font-semibold text-foreground">
+              <div className="text-xs font-bold text-white uppercase font-mono">
                 {isBlocked ? 'Blocked by Policy' : defense === 'none' ? 'No Gate Active' : 'Policy Allowed'}
               </div>
             </div>
-            <div className="text-xs font-mono text-muted-foreground truncate">
+            <div className="text-[11px] font-mono text-[#AAAAAA] truncate bg-[#050505] p-2 border border-[#1A1A1A]">
               {isBlocked ? blockingRule : defense === 'none' ? 'Direct execution path' : 'Within task policy'}
             </div>
           </div>
 
-          {/* Arrow 4 -> 5 */}
-          <div className="flex flex-col items-center justify-center px-1 text-muted-foreground">
-            <ArrowRight className="w-4 h-4" />
-          </div>
+          {/* Flow Connector 4 -> 5 */}
+          <FlowConnector danger={isViolated} />
 
           {/* Node 5: Final Outcome */}
           <div
-            className={`flex-1 rounded-lg p-3.5 border transition-colors ${
+            className={`flex-1 p-3.5 border border-[#242424] bg-[#0D0D0D] ${
               isViolated
-                ? 'bg-[var(--verdict-violated)]/10 border-[var(--verdict-violated)]/40'
+                ? 'border-t-2 border-t-[#FF0055]'
                 : isHeld
-                ? 'bg-[var(--verdict-held)]/10 border-[var(--verdict-held)]/40'
-                : 'bg-card border-border'
+                ? 'border-t-2 border-t-[#CCFF00]'
+                : 'border-t-2 border-t-[#888888]'
             }`}
           >
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                5. Outcome
+              <span className="text-[10px] font-mono font-bold uppercase text-[#888888]">
+                [ 05 // VERDICT ]
               </span>
               <VerdictBadge verdict={verdict} size="sm" />
             </div>
-            <div className="flex items-center gap-2 mb-1.5">
+            <div className="flex items-center gap-2 mb-2">
               {isViolated ? (
-                <AlertTriangle className="w-4 h-4 text-[var(--verdict-violated)] shrink-0" />
+                <AlertTriangle className="w-4 h-4 text-[#FF0055] shrink-0" />
               ) : isHeld ? (
-                <CheckCircle2 className="w-4 h-4 text-[var(--verdict-held)] shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-[#CCFF00] shrink-0" />
               ) : (
-                <Shield className="w-4 h-4 text-muted-foreground shrink-0" />
+                <Shield className="w-4 h-4 text-[#888888] shrink-0" />
               )}
-              <div className="text-xs font-semibold text-foreground">
+              <div className="text-xs font-bold text-white uppercase font-mono truncate">
                 {isViolated ? 'Invariant Violated' : isHeld ? 'All Invariants Held' : 'Inconclusive'}
               </div>
             </div>
-            <div className="text-xs font-mono text-muted-foreground truncate" title={violatedInvariants.join(', ')}>
+            <div className="text-[11px] font-mono text-[#AAAAAA] truncate bg-[#050505] p-2 border border-[#1A1A1A]" title={violatedInvariants.join(', ')}>
               {isViolated && violatedInvariants.length > 0
                 ? violatedInvariants.join(', ')
                 : isHeld
@@ -286,7 +285,7 @@ export default function AttackGraph({
             </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
